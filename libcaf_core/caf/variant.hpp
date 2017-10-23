@@ -33,14 +33,13 @@
 
 #define CAF_VARIANT_CASE(n)                                                    \
   case n:                                                                      \
-    return f(x.get(std::integral_constant<int, (n <= max_type_id ? n : 0)>()))
+    return f(                                                                  \
+      x.get(std::integral_constant<int, (n <= Self::max_type_id ? n : 0)>()))
 
 #define CAF_VARIANT_ASSIGN_CASE(n)                                             \
   case n: {                                                                    \
-    using tmp_t = typename detail::tl_at<                                      \
-                    detail::type_list<Ts...>,                                  \
-                    (n < sizeof...(Ts) ? n : 0)                                \
-                  >::type;                                                     \
+    using tmp_t = typename detail::tl_at<typename T::types,                    \
+                                         (n < T::num_types ? n : 0)>::type;    \
     x.x = tmp_t{};                                                             \
     return f(get<tmp_t>(x.x));                                                 \
   }
@@ -96,11 +95,43 @@ struct is_same_ish
         is_equal_int_type<T, U>
       >::type { };
 
+template <class Self, class Visitor>
+static auto variant_apply_impl(Self& x, Visitor&& f)
+  -> decltype(f(std::declval<typename std::conditional<
+                  std::is_const<Self>::value, const typename Self::type0,
+                  typename Self::type0>::type&>())) {
+  switch (x.index()) {
+    default: CAF_RAISE_ERROR("invalid type found");
+    CAF_VARIANT_CASE(0);
+    CAF_VARIANT_CASE(1);
+    CAF_VARIANT_CASE(2);
+    CAF_VARIANT_CASE(3);
+    CAF_VARIANT_CASE(4);
+    CAF_VARIANT_CASE(5);
+    CAF_VARIANT_CASE(6);
+    CAF_VARIANT_CASE(7);
+    CAF_VARIANT_CASE(8);
+    CAF_VARIANT_CASE(9);
+    CAF_VARIANT_CASE(10);
+    CAF_VARIANT_CASE(11);
+    CAF_VARIANT_CASE(12);
+    CAF_VARIANT_CASE(13);
+    CAF_VARIANT_CASE(14);
+    CAF_VARIANT_CASE(15);
+    CAF_VARIANT_CASE(16);
+    CAF_VARIANT_CASE(17);
+    CAF_VARIANT_CASE(18);
+    CAF_VARIANT_CASE(19);
+  }
+}
+
 /// A variant represents always a valid value of one of the types `Ts...`.
 template <class... Ts>
 class variant {
 public:
   using types = detail::type_list<Ts...>;
+
+  static constexpr size_t num_types = sizeof...(Ts);
 
   static constexpr int max_type_id = sizeof...(Ts) - 1;
 
@@ -128,8 +159,6 @@ public:
   variant() : type_(variant_npos) {
     // Never empty ...
     set(typename detail::tl_head<types>::type());
-    // ... unless an exception was thrown above.
-    type_ = 0;
   }
 
   template <class U>
@@ -195,42 +224,14 @@ public:
   template <class Visitor>
   auto apply(Visitor&& visitor) const
   -> decltype(visitor(std::declval<const type0&>())) {
-    return apply_impl(*this, std::forward<Visitor>(visitor));
+    return variant_apply_impl(*this, std::forward<Visitor>(visitor));
   }
 
   template <class Visitor>
   auto apply(Visitor&& visitor) -> decltype(visitor(std::declval<type0&>())) {
-    return apply_impl(*this, std::forward<Visitor>(visitor));
+    return variant_apply_impl(*this, std::forward<Visitor>(visitor));
   }
 
-  template <class Self, class Visitor>
-  static auto apply_impl(Self& x, Visitor&& f) -> decltype(
-    f(std::declval<typename std::conditional<std::is_const<Self>::value,
-                                             const type0, type0>::type&>())) {
-    switch (x.type_) {
-      default: CAF_RAISE_ERROR("invalid type found");
-      CAF_VARIANT_CASE(0);
-      CAF_VARIANT_CASE(1);
-      CAF_VARIANT_CASE(2);
-      CAF_VARIANT_CASE(3);
-      CAF_VARIANT_CASE(4);
-      CAF_VARIANT_CASE(5);
-      CAF_VARIANT_CASE(6);
-      CAF_VARIANT_CASE(7);
-      CAF_VARIANT_CASE(8);
-      CAF_VARIANT_CASE(9);
-      CAF_VARIANT_CASE(10);
-      CAF_VARIANT_CASE(11);
-      CAF_VARIANT_CASE(12);
-      CAF_VARIANT_CASE(13);
-      CAF_VARIANT_CASE(14);
-      CAF_VARIANT_CASE(15);
-      CAF_VARIANT_CASE(16);
-      CAF_VARIANT_CASE(17);
-      CAF_VARIANT_CASE(18);
-      CAF_VARIANT_CASE(19);
-    }
-  }
   /// @endcond
 
 private:
@@ -298,46 +299,51 @@ template <class... Ts>
 struct is_variant<variant<Ts...>> : std::true_type {};
 
 /// @relates variant
-template <class T, class... Us>
-T& get(variant<Us...>& value) {
+template <class T, class U,
+          class E = typename std::enable_if<is_variant<U>::value>::type>
+T& get(U& value) {
   using namespace detail;
-  int_token<tl_index_where<type_list<Us...>,
-                           tbind<is_same_ish, T>::template type>::value> token;
-  // silence compiler error about "binding to unrelated types" such as
-  // 'signed char' to 'char' (which is obvious bullshit)
-  return reinterpret_cast<T&>(value.get(token));
+  int_token<tl_index_where<typename U::types,
+                           tbind<is_same_ish, T>::template type>::value>
+    token;
+  return value.get(token);
 }
 
 /// @relates variant
-template <class T, class... Us>
-const T& get(const variant<Us...>& value) {
-  // compiler implicitly restores const because of the return type
-  return get<T>(const_cast<variant<Us...>&>(value));
+template <class T, class U,
+          class E = typename std::enable_if<is_variant<U>::value>::type>
+const T& get(const U& value) {
+  using namespace detail;
+  int_token<tl_index_where<typename U::types,
+                           tbind<is_same_ish, T>::template type>::value>
+    token;
+  return value.get(token);
 }
 
 /// @relates variant
-template <class T, class... Us>
-T* get_if(variant<Us...>* value) {
+template <class T, class U,
+          class E = typename std::enable_if<is_variant<U>::value>::type>
+T* get_if(U* value) {
   using namespace detail;
-  int_token<tl_index_where<type_list<Us...>,
-                           tbind<is_same_ish, T>::template type>::value> token;
+  int_token<tl_index_where<typename U::types,
+                           tbind<is_same_ish, T>::template type>::value>
+    token;
   if (value->is(token))
     return &get<T>(*value);
   return nullptr;
 }
 
 /// @relates variant
-template <class T, class... Us>
-const T* get_if(const variant<Us...>* value) {
-  // compiler implicitly restores const because of the return type
-  return get_if<T>(const_cast<variant<Us...>*>(value));
-}
-
-/// @relates variant
-template <class Visitor, class... Ts>
-typename Visitor::result_type
-CAF_DEPRECATED apply_visitor(Visitor& visitor, const variant<Ts...>& data) {
-  return data.apply(visitor);
+template <class T, class U,
+          class E = typename std::enable_if<is_variant<U>::value>::type>
+const T* get_if(const U* value) {
+  using namespace detail;
+  int_token<tl_index_where<typename U::types,
+                           tbind<is_same_ish, T>::template type>::value>
+    token;
+  if (value->is(token))
+    return &get<T>(*value);
+  return nullptr;
 }
 
 /// @relates variant
@@ -351,15 +357,9 @@ auto visit(Visitor&& visitor, Variant&& data)
   return data.apply(visitor);
 }
 
-/// @relates variant
-template <class Visitor, class... Ts>
-typename Visitor::result_type
-CAF_DEPRECATED apply_visitor(Visitor& visitor, variant<Ts...>& data) {
-  return data.apply(visitor);
-}
-
-template <class T, class... Ts>
-bool holds_alternative(const variant<Ts...>& data) {
+template <class T, class U,
+          class E = typename std::enable_if<is_variant<U>::value>::type>
+bool holds_alternative(const U& data) {
   return data.template is<T>();
 }
 
@@ -406,11 +406,10 @@ struct variant_reader {
 };
 
 /// @relates variant
-template <class Inspector, class... Ts>
+template <class Inspector, class T>
 typename Inspector::result_type
-inspect(Inspector& f, variant_reader<variant<Ts...>>& x) {
+inspect(Inspector& f, variant_reader<T>& x) {
   return x.x.apply(f);
-  //return variant<Ts...>::apply_impl(x.x, f);
 }
 
 /// @relates variant
@@ -431,9 +430,9 @@ struct variant_writer {
 };
 
 /// @relates variant
-template <class Inspector, class... Ts>
+template <class Inspector, class T>
 typename Inspector::result_type
-inspect(Inspector& f, variant_writer<variant<Ts...>>& x) {
+inspect(Inspector& f, variant_writer<T>& x) {
   switch (x.type_tag) {
     default: CAF_RAISE_ERROR("invalid type found");
     CAF_VARIANT_ASSIGN_CASE(0);

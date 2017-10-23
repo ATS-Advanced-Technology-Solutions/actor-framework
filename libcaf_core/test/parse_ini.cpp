@@ -47,6 +47,18 @@ max-threads=2
 [middleman]
 automatic-connections=true
 
+[timing]
+interval1=0min
+interval2=0s
+interval3=0ms
+interval4=0us
+interval5=0ns
+interval6=1min
+interval7=10s
+interval8=981ms
+interval9=2123456us
+interval0=123ns
+
 [nexus]
 host="127.0.0.1"
 port=4242
@@ -212,7 +224,7 @@ struct fixture {
 
   void check_case1() {
     CAF_CHECK(errors.empty());
-    CAF_CHECK(num_values() == 6);
+    CAF_CHECK(num_values() == 16);
     CAF_CHECK(value_is("nexus.port", 4242));
     CAF_CHECK(value_is("nexus.host", "127.0.0.1"));
     CAF_CHECK(value_is("scheduler.policy", "work-sharing"));
@@ -220,6 +232,17 @@ struct fixture {
     CAF_CHECK(value_is("middleman.automatic-connections", true));
     CAF_CHECK(value_is("cash.greeting",
               "Hi there, this is \"CASH!\"\n ~\\~ use at your own risk ~\\~"));
+    auto dzero = duration{time_unit::seconds, 0};
+    CAF_CHECK(value_is("timing.interval1", dzero));
+    CAF_CHECK(value_is("timing.interval2", dzero));
+    CAF_CHECK(value_is("timing.interval3", dzero));
+    CAF_CHECK(value_is("timing.interval4", dzero));
+    CAF_CHECK(value_is("timing.interval5", dzero));
+    CAF_CHECK(value_is("timing.interval6", duration{time_unit::minutes, 1}));
+    CAF_CHECK(value_is("timing.interval7", duration{time_unit::seconds, 10}));
+    CAF_CHECK(value_is("timing.interval8", duration{time_unit::milliseconds, 981}));
+    CAF_CHECK(value_is("timing.interval9", duration{time_unit::microseconds, 2123456}));
+    CAF_CHECK(value_is("timing.interval0", duration{time_unit::nanoseconds, 123}));
   }
 
   void check_case2() {

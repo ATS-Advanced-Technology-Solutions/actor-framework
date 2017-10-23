@@ -60,7 +60,9 @@ std::string to_string(const duration& x) {
 }
 
 bool operator==(const duration& lhs, const duration& rhs) {
-  return lhs.unit == rhs.unit && lhs.count == rhs.count;
+  // TODO: a clean implementation would try to convert between units
+  return (lhs.count == 0 && rhs.count == 0)
+         || (lhs.unit == rhs.unit && lhs.count == rhs.count);
 }
 
 } // namespace caf

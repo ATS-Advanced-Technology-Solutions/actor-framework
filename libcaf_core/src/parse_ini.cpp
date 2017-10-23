@@ -91,15 +91,25 @@ void parse_ini_t::operator()(std::istream& input, const config_consumer& consume
     // begin-of-value, ignoring whitespaces after '='
     auto bov = find_if_not(eqs + 1, eol, ::isspace);
     // auto-detect what we are dealing with
-    constexpr const char* true_str = "true";
-    constexpr const char* false_str = "false";
     auto icase_eq = [](char x, char y) {
       return tolower(x) == tolower(y);
     };
-    if (std::equal(bov, eol, true_str, icase_eq)) {
+    if (std::equal(bov, eol, "true", icase_eq)) {
       consumer(ln, std::move(key), true);
-    } else if (std::equal(bov, eol, false_str, icase_eq)) {
+    } else if (std::equal(bov, eol, "false", icase_eq)) {
       consumer(ln, std::move(key), false);
+    } else if (std::equal(bov, eol, "infinite", icase_eq)) {
+      consumer(ln, std::move(key), duration{infinite});
+    } else if (std::equal(bov, eol, "0min", icase_eq)) {
+      consumer(ln, std::move(key), duration{time_unit::minutes, 0});
+    } else if (std::equal(bov, eol, "0s", icase_eq)) {
+      consumer(ln, std::move(key), duration{time_unit::seconds, 0});
+    } else if (std::equal(bov, eol, "0ms", icase_eq)) {
+      consumer(ln, std::move(key), duration{time_unit::milliseconds, 0});
+    } else if (std::equal(bov, eol, "0us", icase_eq)) {
+      consumer(ln, std::move(key), duration{time_unit::microseconds, 0});
+    } else if (std::equal(bov, eol, "0ns", icase_eq)) {
+      consumer(ln, std::move(key), duration{time_unit::nanoseconds, 0});
     } else if (*bov == '\'') {
       // end-of-atom iterator
       auto eoa = eol - 1;
@@ -190,6 +200,7 @@ void parse_ini_t::operator()(std::istream& input, const config_consumer& consume
         else
           consumer(ln, std::move(key), is_neg ? -res : res);
       };
+      // check for number prefixes (0 for octal, 0x for hex, 0b for binary)
       if (*bov == '0' && std::distance(bov, eol) > 1)
         switch (*(bov + 1)) {
           case 'x':
@@ -206,10 +217,43 @@ void parse_ini_t::operator()(std::istream& input, const config_consumer& consume
             else
               set_dval();
         }
-      else if (all_of(bov, eol, ::isdigit))
-        set_ival(10, 0, "invalid decimal value");
-      else
-        set_dval();
+      else {
+        // check whether we have a suffix
+        auto eov = find_if_not(bov, eol, ::isdigit);
+        if (eov == eol) {
+          // no suffix, try parsing the line as integer or double
+          if (all_of(bov, eol, ::isdigit))
+            set_ival(10, 0, "invalid decimal value");
+          else
+            set_dval();
+        } else {
+          auto tu = time_unit::invalid;
+          if (std::equal(eov, eol, "min")) {
+            tu = time_unit::minutes;
+          } else if (std::equal(eov, eol, "s")) {
+            tu = time_unit::seconds;
+          } else if (std::equal(eov, eol, "ms")) {
+            tu = time_unit::milliseconds;
+          } else if (std::equal(eov, eol, "us")) {
+            tu = time_unit::microseconds;
+          } else if (std::equal(eov, eol, "ns")) {
+            tu = time_unit::nanoseconds;
+          } else {
+            // no valid suffix, but it could still be a double
+            set_dval();
+            continue;
+          }
+          const char* str_begin = &*(bov);
+          const char* str_end = str_begin + std::distance(bov, eov);
+          char* e;
+          auto res = static_cast<uint32_t>(std::strtol(str_begin, &e, 10));
+          // check if we reached the end
+          if (e != str_end)
+            print_error("invalid decimal value preceding duration suffix");
+          else
+            consumer(ln, std::move(key), duration{tu, res});
+          }
+      }
     }
   }
 }
