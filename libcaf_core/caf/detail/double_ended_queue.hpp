@@ -202,7 +202,10 @@ public:
   // does not lock
   bool empty() const {
     // atomically compares first and last pointer without locks
-    return head_ == tail_;
+//  return head_ == tail_;
+//  std::atomic<T>::operator==() is not standard and v140_clang_c2 on MSVC can't always resolve cast to T, 
+//  we therefore so explicitly compare load() results
+    return head_.load() == tail_.load();
   }
 
 private:
