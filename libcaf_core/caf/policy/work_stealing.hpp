@@ -195,7 +195,7 @@ public:
     auto& cv             = d(self).waitdata.cv;
     bool notimeout = true;
     resumable* job = nullptr;
-    ssize_t i=0;
+    size_t i=0;
     do {
 	{ // guard scope 
 	    std::unique_lock<std::mutex> guard(lock);
