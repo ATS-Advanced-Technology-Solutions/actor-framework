@@ -25,6 +25,8 @@
 #include <thread>
 #include <random>
 #include <cstddef>
+#include <mutex>
+#include <condition_variable>
 
 #include "caf/resumable.hpp"
 #include "caf/actor_system_config.hpp"
@@ -53,6 +55,12 @@ public:
     size_t step_size;
     size_t steal_interval;
     usec sleep_duration;
+  };
+
+  struct wait_strategy {
+      std::mutex lock;
+      std::condition_variable cv;
+      bool sleeping{false};
   };
 
   // The coordinator has only a counter for round-robin enqueue to its workers.
@@ -92,6 +100,7 @@ public:
     std::default_random_engine rengine;
     std::uniform_int_distribution<size_t> uniform;
     poll_strategy strategies[3];
+    wait_strategy waitdata;
   };
 
   // Goes on a raid in quest for a shiny new job.
@@ -122,6 +131,19 @@ public:
   }
 
   template <class Worker>
+  void post_external_enqueue(Worker* self) {
+    auto  sleeping     = d(self).waitdata.sleeping;
+    auto& lock         = d(self).waitdata.lock;
+    auto& cv           = d(self).waitdata.cv;
+    {
+	std::unique_lock<std::mutex> guard(lock);	
+	if (sleeping && !d(self).queue.empty() ) {
+	    cv.notify_one(); 
+	}      
+    }
+  }
+
+  template <class Worker>
   void internal_enqueue(Worker* self, resumable* job) {
     d(self).queue.prepend(job);
   }
@@ -144,24 +166,57 @@ public:
     // "signalizing" implementation based on mutexes and conition variables
     auto& strategies = d(self).strategies;
     resumable* job = nullptr;
-    for (auto& strat : strategies) {
-      for (size_t i = 0; i < strat.attempts; i += strat.step_size) {
+    for (int k=0;k<2;++k) {  // iterate over the first two strategies
+	for (size_t i = 0; i < strategies[k].attempts; i += strategies[k].step_size) {
         job = d(self).queue.take_head();
         if (job)
           return job;
         // try to steal every X poll attempts
-        if ((i % strat.steal_interval) == 0) {
+        if ((i % strategies[k].steal_interval) == 0) {
           job = try_steal(self);
           if (job)
             return job;
         }
-        if (strat.sleep_duration.count() > 0)
-          std::this_thread::sleep_for(strat.sleep_duration);
+        if (strategies[k].sleep_duration.count() > 0)
+          std::this_thread::sleep_for(strategies[k].sleep_duration);
       }
     }
-    // unreachable, because the last strategy loops
-    // until a job has been dequeued
+    // returning a non-valid job
     return nullptr;
+  }
+
+  // blocking version of dequeue
+  template <class Worker>
+  resumable* dequeue2(Worker* self) {    
+    auto  sleep_duration = d(self).strategies[2].sleep_duration;
+    auto  steal_interval = d(self).strategies[2].steal_interval;
+    auto& sleeping       = d(self).waitdata.sleeping;
+    auto& lock           = d(self).waitdata.lock;
+    auto& cv             = d(self).waitdata.cv;
+    bool notimeout = true;
+    resumable* job = nullptr;
+    ssize_t i=0;
+    do {
+	{ // guard scope 
+	    std::unique_lock<std::mutex> guard(lock);
+	    sleeping=true;	      
+	    if (!cv.wait_for(guard, sleep_duration, [&]{ return !d(self).queue.empty(); }))
+		notimeout = false;
+	    sleeping=false;
+	}
+	if (notimeout) {
+	    job = d(self).queue.take_head();
+	}
+	else  {
+	    notimeout=true;
+	    if ((i % steal_interval)== 0) {
+		job = try_steal(self);		
+		i=-1;
+	    }
+	}
+	++i;
+    } while(job == nullptr);
+    return job;
   }
 
   template <class Worker, class UnaryFunction>
