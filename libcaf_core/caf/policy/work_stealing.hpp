@@ -211,7 +211,6 @@ public:
 	    notimeout=true;
 	    if ((i % steal_interval)== 0) {
 		job = try_steal(self);		
-		i=-1;
 	    }
 	}
 	++i;
