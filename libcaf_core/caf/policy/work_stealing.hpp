@@ -128,18 +128,12 @@ public:
   template <class Worker>
   void external_enqueue(Worker* self, resumable* job) {
     d(self).queue.append(job);
-  }
-
-  template <class Worker>
-  void post_external_enqueue(Worker* self) {
-    auto  sleeping     = d(self).waitdata.sleeping;
     auto& lock         = d(self).waitdata.lock;
     auto& cv           = d(self).waitdata.cv;
     {
 	std::unique_lock<std::mutex> guard(lock);	
-	if (sleeping && !d(self).queue.empty() ) {
+	if (d(self).waitdata.sleeping && !d(self).queue.empty() ) 
 	    cv.notify_one(); 
-	}      
     }
   }
 
@@ -160,10 +154,7 @@ public:
     // we wait for new jobs by polling our external queue: first, we
     // assume an active work load on the machine and perform aggresive
     // polling, then we relax our polling a bit and wait 50 us between
-    // dequeue attempts, finally we assume pretty much nothing is going
-    // on and poll every 10 ms; this strategy strives to minimize the
-    // downside of "busy waiting", which still performs much better than a
-    // "signalizing" implementation based on mutexes and conition variables
+    // dequeue attempts
     auto& strategies = d(self).strategies;
     resumable* job = nullptr;
     for (int k=0;k<2;++k) {  // iterate over the first two strategies
@@ -181,40 +172,34 @@ public:
           std::this_thread::sleep_for(strategies[k].sleep_duration);
       }
     }
-    // returning a non-valid job
-    return nullptr;
-  }
+    // we assume pretty much nothing is going on so we can relax polling
+    // and falling to sleep on a condition variable whose timeout is the one
+    // of the relaxed polling strategy
 
-  // blocking version of dequeue
-  template <class Worker>
-  resumable* dequeue2(Worker* self) {    
-    auto  sleep_duration = d(self).strategies[2].sleep_duration;
-    auto  steal_interval = d(self).strategies[2].steal_interval;
+    auto& relaxed        = strategies[2];
     auto& sleeping       = d(self).waitdata.sleeping;
     auto& lock           = d(self).waitdata.lock;
     auto& cv             = d(self).waitdata.cv;
     bool notimeout = true;
-    resumable* job = nullptr;
-    size_t i=0;
+    size_t i=1;
     do {
 	{ // guard scope 
 	    std::unique_lock<std::mutex> guard(lock);
-	    sleeping=true;	      
-	    if (!cv.wait_for(guard, sleep_duration, [&]{ return !d(self).queue.empty(); }))
+	    sleeping=true;
+	    if (!cv.wait_for(guard, relaxed.sleep_duration, [&]{ return !d(self).queue.empty(); }))
 		notimeout = false;
 	    sleeping=false;
 	}
 	if (notimeout) {
 	    job = d(self).queue.take_head();
-	}
-	else  {
+	} else  {
 	    notimeout=true;
-	    if ((i % steal_interval)== 0) {
-		job = try_steal(self);		
-	    }
+	    if ((i % relaxed.steal_interval) == 0)
+		job = try_steal(self);			    
 	}
 	++i;
     } while(job == nullptr);
+    
     return job;
   }
 
