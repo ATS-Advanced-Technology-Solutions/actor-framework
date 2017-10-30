@@ -69,7 +69,6 @@ public:
   void external_enqueue(job_ptr job) {
     CAF_ASSERT(job != nullptr);
     policy_.external_enqueue(this, job);
-    policy_.post_external_enqueue(this);
   }
 
   /// Enqueues a new job to the worker's queue from an internal
@@ -112,12 +111,6 @@ private:
     // scheduling loop
     for (;;) {
       auto job = policy_.dequeue(this);
-
-      if (job == nullptr) { // never happens for the work-sharing policy
-	  job = policy_.dequeue2(this);
-      }
-
-
       CAF_ASSERT(job != nullptr);
       CAF_ASSERT(job->subtype() != resumable::io_actor);
       CAF_PUSH_AID_FROM_PTR(dynamic_cast<abstract_actor*>(job));

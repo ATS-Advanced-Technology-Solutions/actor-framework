@@ -76,11 +76,6 @@ public:
   }
 
   template <class Worker>
-  void post_external_enqueue(Worker*) {
-      // nop
-  }
-
-  template <class Worker>
   void internal_enqueue(Worker* self, resumable* job) {
     enqueue(self->parent(), job);
   }
@@ -100,11 +95,6 @@ public:
     resumable* job = parent_data.queue.front();
     parent_data.queue.pop_front();
     return job;
-  }
-
-  template <class Worker>
-  resumable* dequeue2(Worker* self) { 
-      return dequeue(self); 
   }
 
   template <class Worker, class UnaryFunction>
