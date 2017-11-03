@@ -369,7 +369,6 @@ private:
 
   std::string extract_config_file_name(message& args);
 
-protected:
   option_vector options_;
 };
 
