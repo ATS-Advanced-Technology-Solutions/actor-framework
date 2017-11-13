@@ -188,10 +188,10 @@
 #  define CAF_POSIX
 #endif
 
-#if defined (CAF_WINDOWS)
-#   if defined (__clang__)
-        struct IUnknown;    // fix for issue with static_cast<> in objbase.h (see https://github.com/philsquared/Catch/issues/690)
-#   endif
+#if defined(CAF_WINDOWS)
+#  if defined(__clang__)
+     struct IUnknown; // fix for issue with static_cast<> in objbase.h (see https://github.com/philsquared/Catch/issues/690)
+#  endif
 #endif
 
 #include <cstdio>
