@@ -1,0 +1,31 @@
+{
+    // The number of spaces a tab is equal to. This setting is overridden based on the file contents when `editor.detectIndentation` is on.
+    "editor.tabSize": 4,
+
+    // Insert spaces when pressing Tab. This setting is overridden based on the file contents when `editor.detectIndentation` is on.
+    "editor.insertSpaces": true,
+
+    // When opening a file, `editor.tabSize` and `editor.insertSpaces` will be detected based on the file contents.
+    "editor.detectIndentation": false,
+
+   // Controls the IntelliSense provider. "Tag Parser" provides "fuzzy" results that are not context-aware. "Default" provides context-aware results and is in preview mode - member list, hover tooltips, and error squiggles are currently implemented. Features not yet implemented in the new default engine will use the tag parser engine instead.
+   "C_Cpp.intelliSenseEngine": "Tag Parser",
+
+   // CMAKE CONFIGURATION SECTION
+   // cmake install prefix
+   "cmake.installPrefix": "${workspaceRoot}/../install/caf",
+    
+   // sets additional options to be passed to the CMake command line when configuring the project.
+   // Each entry will correspond to a -D argument to CMake.
+   // Arrays will automatically be joined as semicolon-serperated strings.
+   "cmake.configureSettings": {
+        // "CMAKE_USER_MAKE_RULES_OVERRIDE": "${workspaceRoot}/../cmake/LLVMClangOverrides.cmake",
+        "CAF_BUILD_STATIC": "Y",
+        "CAF_NO_BENCHMARKS": "Y",
+        "CAF_NO_UNIT_TESTS": "Y",
+        "CAF_NO_EXAMPLES": "Y",
+        "CAF_NO_PYTHON": "Y",
+        "CAF_NO_OPENCL": "Y"
+    },
+
+}

@@ -18,3 +18,9 @@ blog_release_note.md
 github_release_note.md
 .make-release-steps.bash
 *.swo
+
+# remove all files in directory .vscode...
+.vscode/*
+
+# unless following files:
+!.vscode/settings.json
