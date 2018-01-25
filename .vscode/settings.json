@@ -19,6 +19,7 @@
    // Each entry will correspond to a -D argument to CMake.
    // Arrays will automatically be joined as semicolon-serperated strings.
    "cmake.configureSettings": {
+        // "CMAKE_USER_MAKE_RULES_OVERRIDE": "${workspaceRoot}/cmake/MSVC_v140_clang_c2.cmake",
         // "CMAKE_USER_MAKE_RULES_OVERRIDE": "${workspaceRoot}/../cmake/LLVMClangOverrides.cmake",
         "CAF_BUILD_STATIC": "Y",
         "CAF_NO_BENCHMARKS": "Y",
@@ -26,6 +27,5 @@
         "CAF_NO_EXAMPLES": "Y",
         "CAF_NO_PYTHON": "Y",
         "CAF_NO_OPENCL": "Y"
-    },
-
+    }
 }
