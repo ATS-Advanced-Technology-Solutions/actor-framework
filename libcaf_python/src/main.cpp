@@ -110,6 +110,14 @@ void register_class(atom_value*, pybind11::module& m,
 namespace python {
 namespace {
 
+class py_config_base
+{
+    protected:
+        py_config_base() {};
+    public:
+        virtual void build_message(message_builder& xs, pybind11::handle& x) const = 0;
+};
+
 class binding {
 public:
   binding(std::string py_name, bool builtin_type)
@@ -138,7 +146,7 @@ public:
     return builtin_;
   }
 
-  virtual void append(message_builder& xs, pybind11::handle x) const = 0;
+  virtual void append(const py_config_base&, message_builder& xs, pybind11::handle x) const = 0;
 
 private:
   std::string python_name_;
@@ -158,8 +166,20 @@ class default_py_binding : public py_binding {
 public:
   using py_binding::py_binding;
 
-  void append(message_builder& xs, pybind11::handle x) const override {
+  void append(const py_config_base&, message_builder& xs, pybind11::handle x) const override {
     xs.append(x.cast<T>());
+  }
+};
+
+template <>
+class default_py_binding<message> : public py_binding {
+public:
+  using py_binding::py_binding;
+
+  void append (const py_config_base& cfg, message_builder& xs, pybind11::handle x) const override {
+    message_builder sub_msg;
+    cfg.build_message(sub_msg, x);
+    xs.append(sub_msg.move_to_message());
   }
 };
 
@@ -167,7 +187,7 @@ class cpp_binding : public binding {
 public:
   using binding::binding;
 
-  virtual pybind11::object to_object(const type_erased_tuple& xs,
+  virtual pybind11::object to_object(type_erased_tuple& xs,
                                      size_t pos) const = 0;
 };
 
@@ -176,13 +196,13 @@ class default_cpp_binding : public cpp_binding {
 public:
   using cpp_binding::cpp_binding;
 
-  void append(message_builder& xs, pybind11::handle x) const override {
+  void append(const py_config_base&, message_builder& xs, pybind11::handle x) const override {
     xs.append(x.cast<T>());
   }
 
-  pybind11::object to_object(const type_erased_tuple& xs,
+  pybind11::object to_object(type_erased_tuple& xs,
                              size_t pos) const override {
-    return pybind11::cast(xs.get_as<T>(pos));
+    return pybind11::cast(std::move(xs.get_as<T>(pos)), pybind11::return_value_policy::move);
   }
 };
 
@@ -245,9 +265,6 @@ typename std::enable_if<
   && !has_to_string<T>::value
 >::type
 default_python_class_init(pybind11::module& m, const std::string& name) {
-  auto str_impl = [](const T& x) {
-    return to_string(x);
-  };
   pybind11::class_<T>(m, name.c_str());
 }
 
@@ -303,7 +320,26 @@ void register_class(absolute_receive_timeout*, pybind11::module& m,
   .def(pybind11::init<int>());
 }
 
-class py_config : public actor_system_config {
+inline void set_py_exception_fill(std::ostream&) {
+  // end of recursion
+}
+
+template <class T, class... Ts>
+void set_py_exception_fill(std::ostream& oss, T&& x, Ts&&... xs) {
+  set_py_exception_fill(oss << std::forward<T>(x), std::forward<Ts>(xs)...);
+}
+
+
+template <class... Ts>
+void set_py_exception(Ts&&... xs) {
+  std::ostringstream oss;
+  set_py_exception_fill(oss, std::forward<Ts>(xs)...);
+  PyErr_SetString(PyExc_RuntimeError, oss.str().c_str());
+}
+
+class py_config : public actor_system_config,
+    public py_config_base
+{
 public:
   std::string pre_run;
   std::string banner = default_banner;
@@ -316,6 +352,8 @@ public:
     add_py<bool>("bool");
     add_py<float>("float");
     add_py<std::string>("str");
+    add_py<message>("tuple");
+    add_py<message>("list");
     // create Python bindings for builtin CAF types
     add_cpp<actor>("actor", "@actor");
     add_cpp<message>("message", "@message");
@@ -325,6 +363,7 @@ public:
     add_cpp<float>("float", "float", nullptr);
     add_cpp<int32_t>("int32_t", "@i32", nullptr);
     add_cpp<std::string>("str", "@str", nullptr);
+    add_cpp<char>("char", "@i8", nullptr);
     // custom types of caf_python
     add_message_type<absolute_receive_timeout>("absolute_receive_timeout");
   }
@@ -358,7 +397,8 @@ public:
     }
     std::ostringstream oss;
     oss << "import IPython" << endl
-        << "c = IPython.Config()" << endl
+        << "from traitlets.config import Config" << endl
+        << "c = Config()" << endl
         << "c.InteractiveShellApp.exec_lines = [" << endl
         << R"(""")"
         << full_pre_run
@@ -387,7 +427,28 @@ public:
      return cpp_bindings_;
    }
 
+    template<class It>
+    void append_content(message_builder& xs, It i) const
+    {
+        std::string type_name = PyEval_GetFuncName((*i).ptr());
+
+        auto kvp = bindings_.find(type_name);
+        if (kvp == bindings_.end()) {
+        set_py_exception(R"(Unable to add element of type ")",
+                        type_name, R"(" to message: type is unknown to CAF)");
+        return;
+        }
+        kvp->second->append(*this, xs, *i);
+    }
+
 private:
+
+   void build_message(message_builder& xs, pybind11::handle& x) const override
+   {
+        for (auto i = x.begin(); i != x.end(); ++i)
+            append_content(xs, i);
+   }
+
   template <class T>
   void add_py(std::string name) {
     auto ptr = new default_py_binding<T>(name);
@@ -421,9 +482,9 @@ private:
   std::vector<std::function<void (pybind11::module&)>> register_funs_;
 };
 struct py_context {
-  const py_config& cfg;
-  actor_system& system;
-  scoped_actor& self;
+    const py_config& cfg;
+    actor_system& system;
+    scoped_actor& self;
 };
 
 namespace {
@@ -432,22 +493,6 @@ py_context* s_context;
 
 } // namespace <anonymous>
 
-inline void set_py_exception_fill(std::ostream&) {
-  // end of recursion
-}
-
-template <class T, class... Ts>
-void set_py_exception_fill(std::ostream& oss, T&& x, Ts&&... xs) {
-  set_py_exception_fill(oss << std::forward<T>(x), std::forward<Ts>(xs)...);
-}
-
-
-template <class... Ts>
-void set_py_exception(Ts&&... xs) {
-  std::ostringstream oss;
-  set_py_exception_fill(oss, std::forward<Ts>(xs)...);
-  PyErr_SetString(PyExc_RuntimeError, oss.str().c_str());
-}
 
 void py_send(const pybind11::args& xs) {
   if (xs.size() < 2) {
@@ -458,21 +503,13 @@ void py_send(const pybind11::args& xs) {
   auto dest = (*i).cast<actor>();
   ++i;
   message_builder mb;
-  auto& bindings = s_context->cfg.bindings();
-  for (; i != xs.end(); ++i) {
-    std::string type_name = PyEval_GetFuncName((*i).ptr());
-    auto kvp = bindings.find(type_name);
-    if (kvp == bindings.end()) {
-      set_py_exception(R"(Unable to add element of type ")",
-                       type_name, R"(" to message: type is unknown to CAF)");
-      return;
-    }
-    kvp->second->append(mb, *i);
-  }
+  for (; i != xs.end(); ++i)
+    s_context->cfg.append_content(mb, i);
+
   s_context->self->send(dest, mb.move_to_message());
 }
 
-pybind11::tuple tuple_from_message(const type_erased_tuple& msg) {
+pybind11::tuple tuple_from_message(type_erased_tuple&& msg) {
   auto& self = s_context->self;
   auto& bindings = s_context->cfg.portable_bindings();
   pybind11::tuple result(msg.size());
@@ -519,6 +556,17 @@ pybind11::tuple py_dequeue_with_timeout(absolute_receive_timeout timeout) {
 
 actor py_self() {
   return s_context->self;
+}
+
+actor py_get_from_registry(atom_value a)
+{
+    auto act = actor_cast<actor>( s_context->system.registry().get(a) );
+    if( act == actor() )
+    {
+        std::cout << "cannot retrieve actor " << to_string(a) << "; exiting.." << std::endl;
+        exit(42); // TODO: use more elegant method to exit...
+    }
+    return act;
 }
 
 struct foo {
@@ -570,7 +618,8 @@ CAF_MODULE_INIT_RES caf_module_init() {
    .def("dequeue_message", &py_dequeue, "Receives the next message")
    .def("dequeue_message_with_timeout", &py_dequeue_with_timeout, "Receives the next message")
    .def("self", &py_self, "Returns the global self handle")
-   .def("atom", &atom_from_string, "Creates an atom from a string");
+   .def("atom", &atom_from_string, "Creates an atom from a string")
+   .def("get_from_registry", &py_get_from_registry, "Retrieve actor handle from home registry");
   CAF_MODULE_INIT_RET(m.ptr())
 }
 

@@ -25,7 +25,6 @@
         "CAF_NO_BENCHMARKS": "Y",
         "CAF_NO_UNIT_TESTS": "Y",
         "CAF_NO_EXAMPLES": "Y",
-        "CAF_NO_PYTHON": "Y",
         "CAF_NO_OPENCL": "Y"
     }
 }
