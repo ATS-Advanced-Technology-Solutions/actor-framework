@@ -24,16 +24,10 @@ public:
                 // TODO
                 std::cout << "simple_actor init completed" << std::endl;
             },
-            [&] (caf::message& msg, int sequence_number)
-            {
-                // TODO
-                std::cout << "message received: sequence number = " << sequence_number << std::endl;
-                myqueue.push_back(std::move(msg));
-            },
             [&] (caf::message& msg)
             {
                 // TODO
-                std::cout << "recovery message received" << std::endl;
+                std::cout << "caf::message received" << std::endl;
                 myqueue.push_back(std::move(msg));
             },
             [&] (const std::string& s)
