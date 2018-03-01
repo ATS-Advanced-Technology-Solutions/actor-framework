@@ -29,7 +29,10 @@
 
 CAF_PUSH_WARNINGS
 #include "third_party/pybind/include/pybind11/pybind11.h"
+#include "third_party/pybind/include/pybind11/stl_bind.h"
 CAF_POP_WARNINGS
+
+#include "simple_actor.hh"
 
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
@@ -354,6 +357,10 @@ public:
     add_py<std::string>("str");
     add_py<message>("tuple");
     add_py<message>("list");
+
+    // example for std container addition
+    add_py< std::vector<int> >("CAF.vector_int");
+    
     // create Python bindings for builtin CAF types
     add_cpp<actor>("actor", "@actor");
     add_cpp<message>("message", "@message");
@@ -366,6 +373,7 @@ public:
     add_cpp<char>("char", "@i8", nullptr);
     // custom types of caf_python
     add_message_type<absolute_receive_timeout>("absolute_receive_timeout");
+    add_message_type< std::vector<int> >("CAF.vector_int");
   }
 
   template <class T>
@@ -489,7 +497,7 @@ struct py_context {
 
 namespace {
 
-py_context* s_context;
+py_context* s_context = nullptr;
 
 } // namespace <anonymous>
 
@@ -569,6 +577,11 @@ actor py_get_from_registry(atom_value a)
     return act;
 }
 
+actor py_spawn_simple_actor()
+{
+    return spawn_simple_actor( s_context->system );
+}
+
 struct foo {
   int x;
   int y;
@@ -609,20 +622,45 @@ void register_class(foo*, pybind11::module& m, const std::string& name) {
 #define CAF_MODULE_INIT_RET(unused)
 #endif
 
-CAF_MODULE_INIT_RES caf_module_init() {
-  pybind11::module m("CAF", "Python binding for CAF");
-  s_context->cfg.py_init(m);
+void expose_functions(pybind11::module& m)
+{
   // add classes
+  s_context->cfg.py_init(m);
+  
+  // add std containers
+  pybind11::bind_vector<std::vector<int>>(m, "vector_int");
+
   // add free functions
   m.def("send", &py_send, "Sends a message to an actor")
    .def("dequeue_message", &py_dequeue, "Receives the next message")
    .def("dequeue_message_with_timeout", &py_dequeue_with_timeout, "Receives the next message")
    .def("self", &py_self, "Returns the global self handle")
    .def("atom", &atom_from_string, "Creates an atom from a string")
+   .def("spawn_simple_actor", &py_spawn_simple_actor, "Spawn simple actor")
    .def("get_from_registry", &py_get_from_registry, "Retrieve actor handle from home registry");
+}
+
+CAF_MODULE_INIT_RES caf_module_init() {
+    pybind11::module m("CAF", "Python binding for CAF");
+    expose_functions(m);
+
   CAF_MODULE_INIT_RET(m.ptr())
 }
 
+PYBIND11_MODULE (CAF, m) {
+
+    static py_config s_cfg__;
+    static actor_system  s_system__ { s_cfg__ };
+    static scoped_actor  s_self__{ s_system__ };
+
+    static py_context s_ctx { s_cfg__, s_system__, s_self__ };
+    
+    s_context = & s_ctx;
+
+    m.doc() = "Python binding for CAF";
+    expose_functions(m);
+
+}
 
 } // namespace <anonymous>
 } // namespace python
