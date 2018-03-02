@@ -28,8 +28,9 @@
 #include <unordered_map>
 
 CAF_PUSH_WARNINGS
-#include "third_party/pybind/include/pybind11/pybind11.h"
-#include "third_party/pybind/include/pybind11/stl_bind.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/stl_bind.h>
+#include <pybind11/functional.h>
 CAF_POP_WARNINGS
 
 #include "simple_actor.hh"
@@ -115,10 +116,10 @@ namespace {
 
 class py_config_base
 {
-    protected:
-        py_config_base() {};
-    public:
-        virtual void build_message(message_builder& xs, pybind11::handle& x) const = 0;
+  protected:
+    py_config_base() {};
+  public:
+    virtual void build_message(message_builder& xs, pybind11::handle& x) const = 0;
 };
 
 class binding {
@@ -489,10 +490,11 @@ private:
 
   std::vector<std::function<void (pybind11::module&)>> register_funs_;
 };
+
 struct py_context {
-    const py_config& cfg;
-    actor_system& system;
-    scoped_actor& self;
+  const py_config& cfg;
+  actor_system& system;
+  scoped_actor& self;
 };
 
 namespace {
@@ -568,18 +570,18 @@ actor py_self() {
 
 actor py_get_from_registry(atom_value a)
 {
-    auto act = actor_cast<actor>( s_context->system.registry().get(a) );
-    if( act == actor() )
-    {
-        std::cout << "cannot retrieve actor " << to_string(a) << "; exiting.." << std::endl;
-        exit(42); // TODO: use more elegant method to exit...
-    }
-    return act;
+  auto act = actor_cast<actor>( s_context->system.registry().get(a) );
+  if( act == actor() )
+  {
+    std::cout << "cannot retrieve actor " << to_string(a) << "; exiting.." << std::endl;
+    exit(42); // TODO: use more elegant method to exit...
+  }
+  return act;
 }
 
-actor py_spawn_simple_actor()
+actor py_spawn_simple_actor(msg_handler& func)
 {
-    return spawn_simple_actor( s_context->system );
+  return spawn_simple_actor( s_context->system, func );
 }
 
 struct foo {
@@ -641,24 +643,24 @@ void expose_functions(pybind11::module& m)
 }
 
 CAF_MODULE_INIT_RES caf_module_init() {
-    pybind11::module m("CAF", "Python binding for CAF");
-    expose_functions(m);
+  pybind11::module m("CAF", "Python binding for CAF");
+  expose_functions(m);
 
   CAF_MODULE_INIT_RET(m.ptr())
 }
 
 PYBIND11_MODULE (CAF, m) {
 
-    static py_config s_cfg__;
-    static actor_system  s_system__ { s_cfg__ };
-    static scoped_actor  s_self__{ s_system__ };
+  static py_config s_cfg__;
+  static actor_system  s_system__ { s_cfg__ };
+  static scoped_actor  s_self__{ s_system__ };
 
-    static py_context s_ctx { s_cfg__, s_system__, s_self__ };
+  static py_context s_ctx { s_cfg__, s_system__, s_self__ };
     
-    s_context = & s_ctx;
+  s_context = &s_ctx;
 
-    m.doc() = "Python binding for CAF";
-    expose_functions(m);
+  m.doc() = "Python binding for CAF";
+  expose_functions(m);
 
 }
 
@@ -685,7 +687,7 @@ public:
 void caf_main(actor_system& system, const config& cfg) {
   // register system and scoped actor in global variables
   scoped_actor self{system};
-  py_context ctx{cfg, system, self};
+  py_context ctx{ cfg, system, self };
   s_context = &ctx;
   // init Python
   PyImport_AppendInittab("CAF", caf_module_init);

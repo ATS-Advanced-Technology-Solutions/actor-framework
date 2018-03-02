@@ -6,6 +6,8 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pybind/CMakeLists.txt")
   message(WARNING "pybind submodule not loaded, skip libcaf_python")
   set(CAF_NO_PYTHON yes)
 else()
+  add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/pybind")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/pybind/include")
   if(NOT "${CAF_PYTHON_CONFIG_BIN}" STREQUAL "")
     execute_process(COMMAND "${CAF_PYTHON_CONFIG_BIN}" --includes
                     OUTPUT_VARIABLE PYTHON_INCLUDE_FLAGS)
@@ -39,6 +41,7 @@ endif()
 
 
 set(CAF_PYTHON_SRCS src/main.cpp)
+set(CAF_PYTHON_SCRIPTS src/async_test.py)
 set(CAF_PYTHON_HDRS)
 
 # add targets to CMake
@@ -46,14 +49,29 @@ if(NOT CAF_NO_PYTHON)
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
   add_executable(caf-python ${CAF_PYTHON_SRCS} ${CAF_PYTHON_HDRS})
   target_link_libraries(caf-python
+  ${LD_FLAGS}
+  ${CAF_LIBRARY_CORE}
+  ${CAF_LIBRARY_IO}
+  ${CAF_LIBRARY_RIAC}
+  ${PTHREAD_LIBRARIES}
+  ${LIBEDIT_LIBRARIES}
+  ${PYTHON_LIBRARIES})
+  install(PROGRAMS ${EXECUTABLE_OUTPUT_PATH}/caf-python DESTINATION bin)
+
+  #
+  # PYTHON LIBRARY
+  #
+  pybind11_add_module(CAF ${CAF_PYTHON_SRCS})
+  target_link_libraries(CAF
                         ${LD_FLAGS}
-                        ${CAF_LIBRARY_CORE}
-                        ${CAF_LIBRARY_IO}
-                        ${CAF_LIBRARY_RIAC}
+                        ${CAF_LIBRARY_CORE_STATIC}
+                        ${CAF_LIBRARY_IO_STATIC}
+                        ${CAF_LIBRARY_RIAC_STATIC}
                         ${PTHREAD_LIBRARIES}
                         ${LIBEDIT_LIBRARIES}
                         ${PYTHON_LIBRARIES})
-  install(PROGRAMS ${EXECUTABLE_OUTPUT_PATH}/caf-python DESTINATION bin)
+  install(TARGETS CAF DESTINATION bin)
+  install(FILES ${CAF_PYTHON_SCRIPTS} DESTINATION bin)
 else()
   add_custom_target(caf-python SOURCES ${CAF_PYTHON_SRCS} ${CAF_PYTHON_HDRS})
 endif()
