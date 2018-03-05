@@ -695,7 +695,9 @@ void caf_main(actor_system& system, const config& cfg) {
   // create Python module for CAF
   int py_res = 0;
   if (!cfg.py_file.empty()) {
-    auto fp = fopen(cfg.py_file.c_str() , "r");
+    // Workaround for opening files (on Windows "auto fp = fopen(cfg.py_file.c_str() , "r");" with Python 3.6.4 is not working)
+	  PyObject *obj = Py_BuildValue("s", cfg.py_file.c_str());
+	  FILE* fp = _Py_fopen_obj(obj, "r+");
     if (fp == nullptr) {
       cerr << "Unable to open file " << cfg.py_file << endl;
       Py_Finalize();
@@ -705,13 +707,18 @@ void caf_main(actor_system& system, const config& cfg) {
     py_res = PyRun_SimpleString(full_pre_run.c_str());
     if (py_res == 0)
       py_res = PyRun_SimpleFileEx(fp, cfg.py_file.c_str(), 1);
+
+    if (py_res != 0) {
+      cerr << "Something wrong during script execution!" << endl
+          << "Please check it" << endl;
+    }
   } else {
     auto script = cfg.ipython_script();
     py_res = PyRun_SimpleString(script.c_str());
-  }
-  if (py_res != 0) {
-    cerr << "Unable to launch interactive Python shell!" << endl
-         << "Please install it using: pip install ipython" << endl;
+    if (py_res != 0) {
+      cerr << "Unable to launch interactive Python shell!" << endl
+          << "Please install it using: pip install ipython" << endl;
+    }
   }
   Py_Finalize();
 }
