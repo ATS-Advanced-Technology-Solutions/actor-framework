@@ -25,6 +25,8 @@
 #include "caf/execution_unit.hpp"
 #include "caf/logger.hpp"
 #include "caf/resumable.hpp"
+#include "caf/actor_system.hpp"
+
 
 namespace caf {
 namespace scheduler {
@@ -56,7 +58,7 @@ public:
     this_thread_ = std::thread{[this_worker] {
       CAF_SET_LOGGER_SYS(&this_worker->system());
       detail::set_thread_name("caf.multiplexer");
-      this_worker->system().thread_started();
+      this_worker->system().thread_started(actor_system::worker_thread);
       this_worker->run();
       this_worker->system().thread_terminates();
     }};

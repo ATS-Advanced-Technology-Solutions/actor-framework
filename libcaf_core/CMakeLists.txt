@@ -24,6 +24,7 @@ set(LIBCAF_CORE_SRCS
   src/actor_registry.cpp
   src/actor_system.cpp
   src/actor_system_config.cpp
+  src/affinity_manager.cpp
   src/append_hex.cpp
   src/atom.cpp
   src/attachable.cpp
