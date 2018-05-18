@@ -214,6 +214,15 @@ actor_system_config::actor_system_config()
        "sets the path to an OpenSSL-style directory of trusted certificates")
   .add(openssl_cafile, "cafile",
        "sets the path to a file containing trusted certificates concatenated together in PEM format");
+  opt_group(options_, "affinity")
+  .add(affinity_worker_cores,  "worker-cores",
+       "sets the cores to use for the worker threads")
+  .add(affinity_detached_cores, "detached-cores",   
+       "sets the cores to use for the detached threads")
+  .add(affinity_blocking_cores, "blocking-cores",   
+       "sets the cores to use for the blocking threads")
+  .add(affinity_other_cores, "other-cores",   
+       "sets the cores for other threads (apart from workers, blocking and detached threads)");
   // add renderers for default error categories
   error_renderers.emplace(atom("system"), render_sec);
   error_renderers.emplace(atom("exit"), render_exit_reason);

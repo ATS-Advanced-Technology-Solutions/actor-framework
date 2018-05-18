@@ -311,6 +311,12 @@ public:
   std::string openssl_capath;
   std::string openssl_cafile;
 
+  // -- thread-affinity parameters ---------------------------------------------
+  std::string affinity_worker_cores;
+  std::string affinity_detached_cores;
+  std::string affinity_blocking_cores;
+  std::string affinity_other_cores;
+    
   // -- factories --------------------------------------------------------------
 
   value_factory_string_map value_factories_by_name;

@@ -26,6 +26,8 @@
 #include "caf/resumable.hpp"
 #include "caf/execution_unit.hpp"
 
+#include "caf/actor_system.hpp"
+
 #include "caf/detail/double_ended_queue.hpp"
 
 namespace caf {
@@ -55,7 +57,7 @@ public:
     CAF_ASSERT(this_thread_.get_id() == std::thread::id{});
     auto this_worker = this;
     this_thread_ = std::thread{[this_worker] {
-      this_worker->system().thread_started();
+      this_worker->system().thread_started(actor_system::worker_thread);
       this_worker->run();
       this_worker->system().thread_terminates();
     }};
