@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -68,7 +67,7 @@ void scribe::data_transferred(execution_unit* ctx, size_t written,
     return;
   using transferred_t = data_transferred_msg;
   using tmp_t = mailbox_element_vals<data_transferred_msg>;
-  tmp_t tmp{strong_actor_ptr{}, message_id::make(),
+  tmp_t tmp{strong_actor_ptr{}, make_message_id(),
             mailbox_element::forwarding_stack{},
             transferred_t{hdl(), written, remaining}};
   invoke_mailbox_element_impl(ctx, tmp);

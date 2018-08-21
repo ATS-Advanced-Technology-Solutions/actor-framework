@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -19,7 +18,7 @@
 
 #include "caf/config.hpp"
 
-#define CAF_SUITE io_dynamic_remote_actor
+#define CAF_SUITE io_dynamic_remote_actor_tcp
 #include "caf/test/unit_test.hpp"
 
 #include <vector>
@@ -132,7 +131,7 @@ behavior linking_actor(event_based_actor* self, const actor& buddy) {
 
 CAF_TEST_FIXTURE_SCOPE(dynamic_remote_actor_tests, fixture)
 
-CAF_TEST(identity_semantics) {
+CAF_TEST(identity_semantics_tcp) {
   // server side
   auto server = server_side.spawn(make_pong_behavior);
   CAF_EXP_THROW(port1, server_side_mm.publish(server, 0, local_host));
@@ -148,7 +147,7 @@ CAF_TEST(identity_semantics) {
   anon_send_exit(server, exit_reason::user_shutdown);
 }
 
-CAF_TEST(ping_pong) {
+CAF_TEST(ping_pong_tcp) {
   // server side
   CAF_EXP_THROW(port,
                 server_side_mm.publish(server_side.spawn(make_pong_behavior),
@@ -158,7 +157,7 @@ CAF_TEST(ping_pong) {
   client_side.spawn(make_ping_behavior, pong);
 }
 
-CAF_TEST(custom_message_type) {
+CAF_TEST(custom_message_type_tcp) {
   // server side
   CAF_EXP_THROW(port, server_side_mm.publish(server_side.spawn(make_sort_behavior),
                                              0, local_host));
@@ -167,7 +166,7 @@ CAF_TEST(custom_message_type) {
   client_side.spawn(make_sort_requester_behavior, sorter);
 }
 
-CAF_TEST(remote_link) {
+CAF_TEST(remote_link_tcp) {
   // server side
   CAF_EXP_THROW(port, server_side_mm.publish(server_side.spawn(fragile_mirror),
                                              0, local_host));

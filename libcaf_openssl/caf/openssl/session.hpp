@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -32,6 +31,15 @@ CAF_POP_WARNINGS
 
 #include "caf/io/network/native_socket.hpp"
 #include "caf/io/network/default_multiplexer.hpp"
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+# define CAF_SSL_HAS_SECURITY_LEVEL
+# define CAF_SSL_HAS_NON_VERSIONED_TLS_FUN
+#endif
+
+#if defined(SSL_CTX_set_ecdh_auto)
+# define CAF_SSL_HAS_ECDH_AUTO
+#endif
 
 namespace caf {
 namespace openssl {

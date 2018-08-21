@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -20,6 +19,7 @@
 #ifndef CAF_DETAIL_PRIVATE_THREAD_HPP
 #define CAF_DETAIL_PRIVATE_THREAD_HPP
 
+#include <atomic>
 #include <mutex>
 #include <condition_variable>
 
@@ -57,9 +57,9 @@ public:
 private:
   std::mutex mtx_;
   std::condition_variable cv_;
-  volatile bool self_destroyed_;
-  volatile scheduled_actor* self_;
-  volatile worker_state state_;
+  std::atomic<bool> self_destroyed_;
+  std::atomic<scheduled_actor*> self_;
+  std::atomic<worker_state> state_;
   actor_system& system_;
 };
 

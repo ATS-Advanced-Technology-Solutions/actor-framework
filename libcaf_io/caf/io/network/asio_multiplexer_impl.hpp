@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  * Raphael Hiesgen <raphael.hiesgen (at) haw-hamburg.de>                      *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
@@ -248,6 +247,30 @@ asio_multiplexer::new_tcp_doorman(uint16_t port, const char* in, bool rflag) {
   return new_doorman(std::move(fd));
 }
 
+datagram_servant_ptr asio_multiplexer::new_datagram_servant(native_socket) {
+  CAF_RAISE_ERROR("UDP is not implemented for asio");
+  return nullptr;
+}
+
+datagram_servant_ptr
+asio_multiplexer::new_datagram_servant_for_endpoint(native_socket,
+                                                    const ip_endpoint&) {
+  CAF_RAISE_ERROR("UDP is not implemented for asio");
+  return nullptr;
+}
+
+expected<datagram_servant_ptr>
+asio_multiplexer::new_remote_udp_endpoint(const std::string&, uint16_t) {
+  CAF_RAISE_ERROR("UDP is not implemented for asio");
+  return sec::bad_function_call;
+}
+
+expected<datagram_servant_ptr>
+asio_multiplexer::new_local_udp_endpoint(uint16_t, const char*, bool) {
+  CAF_RAISE_ERROR("UDP is not implemented for asio");
+  return sec::bad_function_call;
+}
+
 void asio_multiplexer::exec_later(resumable* rptr) {
   auto mt = system().config().scheduler_max_throughput;
   switch (rptr->subtype()) {
@@ -308,7 +331,7 @@ void asio_multiplexer::run() {
     CAF_RAISE_ERROR(ec.message());
 }
 
-boost::asio::io_service* asio_multiplexer::pimpl() {
+multiplexer_backend* asio_multiplexer::pimpl() {
   return &service_;
 }
 

@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -109,7 +108,7 @@ public:
 
   actor_system_config();
 
-  actor_system_config(actor_system_config&&);
+  actor_system_config(actor_system_config&&) = default;
 
   actor_system_config(const actor_system_config&) = delete;
   actor_system_config& operator=(const actor_system_config&) = delete;
@@ -257,6 +256,7 @@ public:
   actor_system_config& set(const char* cn, config_value cv);
 
   // -- config parameters of the scheduler -------------------------------------
+
   atom_value scheduler_policy;
   size_t scheduler_max_threads;
   size_t scheduler_max_throughput;
@@ -298,6 +298,10 @@ public:
   size_t middleman_heartbeat_interval;
   bool middleman_detach_utility_actors;
   bool middleman_detach_multiplexer;
+  bool middleman_enable_tcp;
+  bool middleman_enable_udp;
+  size_t middleman_cached_udp_buffers;
+  size_t middleman_max_pending_msgs;
 
   // -- config parameters of the OpenCL module ---------------------------------
 

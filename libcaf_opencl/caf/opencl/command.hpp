@@ -6,7 +6,6 @@
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
  * Copyright (C) 2011 - 2016                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -198,7 +197,7 @@ private:
                                    events.data(), &events.back());
     if (err != CL_SUCCESS) {
       this->deref(); // failed to enqueue command
-      throw std::runtime_error("clEnqueueReadBuffer: " + opencl_error(err));
+      CAF_RAISE_ERROR("clEnqueueReadBuffer: " + opencl_error(err));
     }
     pos += 1;
   }

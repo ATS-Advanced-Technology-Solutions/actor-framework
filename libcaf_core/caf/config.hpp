@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -38,7 +37,7 @@
 /// Denotes version of CAF in the format {MAJOR}{MINOR}{PATCH},
 /// whereas each number is a two-digit decimal number without
 /// leading zeros (e.g. 900 is version 0.9.0).
-#define CAF_VERSION 1505
+#define CAF_VERSION 1507
 
 /// Defined to the major version number of CAF.
 #define CAF_MAJOR_VERSION (CAF_VERSION / 10000)
@@ -63,8 +62,8 @@
 // CAF_PUSH_WARNINGS and CAF_POP_WARNINGS
 #if defined(__clang__)
 #  define CAF_CLANG
-#  define CAF_DEPRECATED __attribute__((__deprecated__))
-#  define CAF_DEPRECATED_MSG(msg) __attribute__((__deprecated__(msg)))
+#  define CAF_DEPRECATED __attribute__((deprecated))
+#  define CAF_DEPRECATED_MSG(msg) __attribute__((deprecated(msg)))
 #  define CAF_PUSH_WARNINGS                                                    \
     _Pragma("clang diagnostic push")                                           \
     _Pragma("clang diagnostic ignored \"-Wall\"")                              \
@@ -105,8 +104,8 @@
 #  endif
 #elif defined(__GNUC__)
 #  define CAF_GCC
-#  define CAF_DEPRECATED __attribute__((__deprecated__))
-#  define CAF_DEPRECATED_MSG(msg) __attribute__((__deprecated__(msg)))
+#  define CAF_DEPRECATED __attribute__((deprecated))
+#  define CAF_DEPRECATED_MSG(msg) __attribute__((deprecated(msg)))
 #  define CAF_PUSH_WARNINGS
     _Pragma("GCC diagnostic push")                                             \
     _Pragma("GCC diagnostic ignored \"-Wshadow\"")                             \
@@ -235,6 +234,5 @@
 # define CAF_RAISE_ERROR(msg)                                                  \
   throw std::runtime_error(msg)
 #endif // CAF_NO_EXCEPTIONS
-
 
 #endif // CAF_CONFIG_HPP

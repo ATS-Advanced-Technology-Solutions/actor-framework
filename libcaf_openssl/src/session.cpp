@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -204,7 +203,11 @@ const char* session::openssl_passphrase() {
 
 SSL_CTX* session::create_ssl_context() {
   CAF_BLOCK_SIGPIPE();
+#ifdef CAF_SSL_HAS_NON_VERSIONED_TLS_FUN
+  auto ctx = SSL_CTX_new(TLS_method());
+#else
   auto ctx = SSL_CTX_new(TLSv1_2_method());
+#endif
   if (!ctx)
     raise_ssl_error("cannot create OpenSSL context");
   if (sys_.openssl_manager().authentication_enabled()) {
@@ -240,13 +243,23 @@ SSL_CTX* session::create_ssl_context() {
   } else {
     // No authentication.
     SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr);
+#ifdef CAF_SSL_HAS_ECDH_AUTO
+    SSL_CTX_set_ecdh_auto(ctx, 1);
+#else
     auto ecdh = EC_KEY_new_by_curve_name(NID_secp384r1);
     if (!ecdh)
       raise_ssl_error("cannot get ECDH curve");
     CAF_PUSH_WARNINGS
     SSL_CTX_set_tmp_ecdh(ctx, ecdh);
+    EC_KEY_free(ecdh);
     CAF_POP_WARNINGS
-    if (SSL_CTX_set_cipher_list(ctx, "AECDH-AES256-SHA") != 1)
+#endif
+#ifdef CAF_SSL_HAS_SECURITY_LEVEL
+    const char* cipher = "AECDH-AES256-SHA@SECLEVEL=0";
+#else
+    const char* cipher = "AECDH-AES256-SHA";
+#endif
+    if (SSL_CTX_set_cipher_list(ctx, cipher) != 1)
       raise_ssl_error("cannot set anonymous cipher");
   }
   return ctx;

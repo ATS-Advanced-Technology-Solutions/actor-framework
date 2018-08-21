@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -78,8 +77,6 @@ public:
   inline const duration& timeout() const {
     return timeout_;
   }
-
-  virtual pointer copy(const generic_timeout_definition& tdef) const = 0;
 
   pointer or_else(const pointer& other);
 
@@ -165,9 +162,6 @@ public:
     call_timeout_handler(cases_, token);
   }
 
-  typename behavior_impl::pointer
-  copy(const generic_timeout_definition& td) const override;
-
 private:
   void init() {
     std::integral_constant<size_t, 0> first;
@@ -212,24 +206,17 @@ struct behavior_factory {
   }
 };
 
-template <class... Ts>
-typename behavior_impl::pointer
-default_behavior_impl<std::tuple<Ts...>>::copy(const generic_timeout_definition& td) const {
-  using tuple_type = typename with_generic_timeout<has_timeout, std::tuple<Ts...>>::type;
-  behavior_factory<tuple_type> factory;// = &make_counted<default_behavior_impl<tuple_type>>;
-  typename il_range<0, num_cases>::type indices;
-  return apply_args_suffxied(factory, indices, cases_, td);
-}
-
 struct make_behavior_t {
   constexpr make_behavior_t() {
     // nop
   }
 
   template <class... Ts>
-  intrusive_ptr<default_behavior_impl<std::tuple<typename lift_behavior<Ts>::type...>>>
+  intrusive_ptr<
+    default_behavior_impl<std::tuple<typename lift_behavior<Ts>::type...>>>
   operator()(Ts... xs) const {
-    using type = default_behavior_impl<std::tuple<typename lift_behavior<Ts>::type...>>;
+    using type =
+      default_behavior_impl<std::tuple<typename lift_behavior<Ts>::type...>>;
     return make_counted<type>(std::move(xs)...);
   }
 };

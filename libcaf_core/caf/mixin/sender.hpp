@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -27,6 +26,7 @@
 #include "caf/actor.hpp"
 #include "caf/message.hpp"
 #include "caf/duration.hpp"
+#include "caf/no_stages.hpp"
 #include "caf/response_type.hpp"
 #include "caf/response_handle.hpp"
 #include "caf/message_priority.hpp"
@@ -78,7 +78,7 @@ public:
                      >::valid,
                   "this actor does not accept the response message");
     if (dest)
-      dest->eq_impl(message_id::make(P), dptr()->ctrl(),
+      dest->eq_impl(make_message_id(P), dptr()->ctrl(),
                     dptr()->context(), std::forward<Ts>(xs)...);
   }
 
@@ -97,13 +97,14 @@ public:
                   >::valid,
                   "receiver does not accept given message");
     if (dest)
-      dest->eq_impl(message_id::make(P), nullptr,
+      dest->eq_impl(make_message_id(P), nullptr,
                     dptr()->context(), std::forward<Ts>(xs)...);
   }
 
-  template <message_priority P = message_priority::normal,
-            class Dest = actor, class... Ts>
-  void delayed_send(const Dest& dest, const duration& rtime, Ts&&... xs) {
+  template <message_priority P = message_priority::normal, class Rep = int,
+            class Period = std::ratio<1>, class Dest = actor, class... Ts>
+  void delayed_send(const Dest& dest, std::chrono::duration<Rep, Period> rtime,
+                    Ts&&... xs) {
     using token =
       detail::type_list<
         typename detail::implicit_conversions<
@@ -137,23 +138,21 @@ public:
                         >::type
                       >::valid,
                   "this actor does not accept the response message");
-    if (dest)
-      dptr()->system().scheduler().delayed_send(
-        rtime, dptr()->ctrl(), actor_cast<strong_actor_ptr>(dest),
-        message_id::make(P), make_message(std::forward<Ts>(xs)...));
+    if (dest) {
+      auto& clock = dptr()->system().clock();
+      auto t = clock.now() + rtime;
+      auto me = make_mailbox_element(dptr()->ctrl(), make_message_id(P),
+                                     no_stages, std::forward<Ts>(xs)...);
+      clock.schedule_message(t, actor_cast<strong_actor_ptr>(dest),
+                             std::move(me));
+    }
   }
 
-  template <message_priority P = message_priority::normal,
-            class Rep = int, class Period = std::ratio<1>,
+  template <message_priority P = message_priority::normal, class Rep = int,
+            class Period = std::ratio<1>, class Source = actor,
             class Dest = actor, class... Ts>
-  void delayed_send(const Dest& dest, std::chrono::duration<Rep, Period> rtime,
-                    Ts&&... xs) {
-    delayed_send(dest, duration{rtime}, std::forward<Ts>(xs)...);
-  }
-
-  template <message_priority P = message_priority::normal,
-            class Source = actor, class Dest = actor, class... Ts>
-  void delayed_anon_send(const Dest& dest, const duration& rtime, Ts&&... xs) {
+  void delayed_anon_send(const Dest& dest,
+                         std::chrono::duration<Rep, Period> rtime, Ts&&... xs) {
     static_assert(sizeof...(Ts) > 0, "no message to send");
     using token =
       detail::type_list<
@@ -165,19 +164,14 @@ public:
                     token
                   >::valid,
                   "receiver does not accept given message");
-    if (dest)
-      dptr()->system().scheduler().delayed_send(
-        rtime, nullptr, actor_cast<strong_actor_ptr>(dest), message_id::make(P),
-        make_message(std::forward<Ts>(xs)...));
-  }
-
-  template <message_priority P = message_priority::normal,
-            class Rep = int, class Period = std::ratio<1>,
-            class Source = actor, class Dest = actor, class... Ts>
-  void delayed_anon_send(const Dest& dest,
-                         std::chrono::duration<Rep, Period> rtime,
-                         Ts&&... xs) {
-    delayed_anon_send(dest, duration{rtime}, std::forward<Ts>(xs)...);
+    if (dest) {
+      auto& clock = dptr()->system().clock();
+      auto t = clock.now() + rtime;
+      auto me = make_mailbox_element(nullptr, make_message_id(P), no_stages,
+                                     std::forward<Ts>(xs)...);
+      clock.schedule_message(t, actor_cast<strong_actor_ptr>(dest),
+                             std::move(me));
+    }
   }
 
 private:

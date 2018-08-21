@@ -6,7 +6,6 @@
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
  * Copyright (C) 2011 - 2016                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -67,7 +66,7 @@ platform_ptr platform::create(cl_platform_id platform_id,
   if (device_information.empty()) {
     string errstr = "no devices for the platform found";
     CAF_LOG_ERROR(CAF_ARG(errstr));
-    throw runtime_error(move(errstr));
+    CAF_RAISE_ERROR(move(errstr));
   }
   auto name = platform_info(platform_id, CL_PLATFORM_NAME);
   auto vendor = platform_info(platform_id, CL_PLATFORM_VENDOR);

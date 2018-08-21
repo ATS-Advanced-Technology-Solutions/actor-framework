@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -98,7 +97,7 @@ bool monitorable_actor::cleanup(error&& reason, execution_unit* host) {
   // tell printer to purge its state for us if we ever used aout()
   if (getf(abstract_actor::has_used_aout_flag)) {
     auto pr = home_system().scheduler().printer();
-    pr->enqueue(make_mailbox_element(nullptr, message_id::make(), {},
+    pr->enqueue(make_mailbox_element(nullptr, make_message_id(), {},
                                       delete_atom::value, id()),
                 nullptr);
   }

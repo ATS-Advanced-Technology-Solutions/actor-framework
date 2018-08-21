@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  * Raphael Hiesgen <raphael.hiesgen (at) haw-hamburg.de>                      *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
@@ -52,6 +51,10 @@ using asio_tcp_socket = boost::asio::ip::tcp::socket;
 /// Low-level socket type used as default.
 using asio_tcp_socket_acceptor = boost::asio::ip::tcp::acceptor;
 
+class multiplexer_backend : public io_service {
+  // nop
+};
+
 /// A wrapper for the boost::asio multiplexer
 class asio_multiplexer : public multiplexer {
 public:
@@ -72,6 +75,19 @@ public:
   expected<doorman_ptr> new_tcp_doorman(uint16_t port, const char* in,
                                         bool reuse_addr) override;
 
+  datagram_servant_ptr new_datagram_servant(native_socket fd) override;
+
+  datagram_servant_ptr
+  new_datagram_servant_for_endpoint(native_socket fd,
+                                    const ip_endpoint& ep) override;
+
+  expected<datagram_servant_ptr>
+  new_remote_udp_endpoint(const std::string& host, uint16_t port) override;
+
+  expected<datagram_servant_ptr>
+  new_local_udp_endpoint(uint16_t port, const char* in = nullptr,
+                         bool reuse_addr = false) override;
+
   void exec_later(resumable* ptr) override;
 
   asio_multiplexer(actor_system* sys);
@@ -86,14 +102,14 @@ public:
 
   void run() override;
 
-  boost::asio::io_service* pimpl() override;
+  multiplexer_backend* pimpl() override;
 
   inline boost::asio::io_service& service() {
     return service_;
   }
 
 private:
-  io_service service_;
+  multiplexer_backend service_;
 };
 
 template <class T>

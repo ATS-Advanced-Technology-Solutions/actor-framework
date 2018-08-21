@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -33,6 +32,7 @@
 #include "caf/logger.hpp"
 #include "caf/actor_cast.hpp"
 #include "caf/make_actor.hpp"
+#include "caf/actor_clock.hpp"
 #include "caf/infer_handle.hpp"
 #include "caf/actor_config.hpp"
 #include "caf/spawn_options.hpp"
@@ -476,9 +476,12 @@ public:
   }
 
   /// Returns the configuration of this actor system.
-  const actor_system_config& config() const {
+  inline const actor_system_config& config() const {
     return cfg_;
   }
+
+  /// Returns the system-wide clock.
+  actor_clock& clock() noexcept;
 
   /// @cond PRIVATE
 

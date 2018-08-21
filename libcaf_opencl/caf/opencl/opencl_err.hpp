@@ -6,7 +6,6 @@
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
  * Copyright (C) 2011 - 2016                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
  * Raphael Hiesgen <raphael.hiesgen (at) haw-hamburg.de>                      *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
@@ -32,7 +31,7 @@ namespace caf {
 namespace opencl {
 
 void throwcl(const char* fname, cl_int err);
-void pfn_notify(const char* errinfo, const void*, size_t, void*);
+void CL_CALLBACK pfn_notify(const char* errinfo, const void*, size_t, void*);
 
 // call convention for simply calling a function
 template <class F, class... Ts>

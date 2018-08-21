@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -549,7 +548,7 @@ public:
 CAF_HAS_MEMBER_TRAIT(size);
 CAF_HAS_MEMBER_TRAIT(data);
 
-/// Checks whether T is convertible to either `std::function<void (T&)>`
+/// Checks whether F is convertible to either `std::function<void (T&)>`
 /// or `std::function<void (const T&)>`.
 template <class F, class T>
 struct is_handler_for {
@@ -613,6 +612,20 @@ struct is_specialization : std::false_type { };
 
 template <template <class...> class T, class... Ts>
 struct is_specialization<T, T<Ts...>> : std::true_type { };
+
+/// Transfers const from `T` to `U`. `U` remains unchanged if `T` is not const.
+template <class T, class U>
+struct transfer_const {
+  using type = U;
+};
+
+template <class T, class U>
+struct transfer_const<const T, U> {
+  using type = const U;
+};
+
+template <class T, class U>
+using transfer_const_t = typename transfer_const<T, U>::type;
 
 } // namespace detail
 } // namespace caf

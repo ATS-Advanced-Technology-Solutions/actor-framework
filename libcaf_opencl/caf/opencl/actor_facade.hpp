@@ -6,7 +6,6 @@
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
  * Copyright (C) 2011 - 2016                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -49,7 +48,7 @@ namespace opencl {
 class manager;
 
 template <bool PassConfig, class... Ts>
-class actor_facade : public monitorable_actor {
+class actor_facade : public local_actor {
 public:
   using arg_types = detail::type_list<Ts...>;
   using unpacked_types = typename detail::tl_map<arg_types, extract_type>::type;
@@ -90,16 +89,14 @@ public:
                       Ts&&... xs) {
     if (range.dimensions().empty()) {
       auto str = "OpenCL kernel needs at least 1 global dimension.";
-      CAF_LOG_ERROR(str);
-      throw std::runtime_error(str);
+      CAF_RAISE_ERROR(str);
     }
     auto check_vec = [&](const dim_vec& vec, const char* name) {
       if (! vec.empty() && vec.size() != range.dimensions().size()) {
         std::ostringstream oss;
         oss << name << " vector is not empty, but "
             << "its size differs from global dimensions vector's size";
-        CAF_LOG_ERROR(CAF_ARG(oss.str()));
-        throw std::runtime_error(oss.str());
+        CAF_RAISE_ERROR(oss.str());
       }
     };
     check_vec(range.offsets(), "offsets");
@@ -185,7 +182,7 @@ public:
                detail::raw_kernel_ptr kernel, nd_range range,
                input_mapping map_args, output_mapping map_result,
                std::tuple<Ts...> xs)
-      : monitorable_actor(actor_conf),
+      : local_actor(actor_conf),
         kernel_(std::move(kernel)),
         program_(prog->program_),
         context_(prog->context_),
@@ -457,6 +454,10 @@ public:
       content = std::move(*mapped);
     }
     return true;
+  }
+
+  void launch(execution_unit*, bool, bool) override {
+    CAF_RAISE_ERROR("launch of the actor facade should not be called");
   }
 
   detail::raw_kernel_ptr kernel_;

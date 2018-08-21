@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -25,8 +24,8 @@
 #if defined(CAF_MACOS) || defined(CAF_IOS)
 #include <mach/mach.h>
 #elif defined(CAF_WINDOWS)
-#include <Windows.h>
-#include <Psapi.h>
+#include <windows.h>
+#include <psapi.h>
 #else
 #include <sys/resource.h>
 #endif

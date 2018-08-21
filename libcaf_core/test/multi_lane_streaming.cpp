@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -104,7 +103,7 @@ behavior stream_splitter(stateful_actor<stream_splitter_state>* self) {
       auto sid = self->streams().begin()->first;
       auto hdl = self->current_sender();
       if (!self->add_sink<element_type>(
-            self->state.stage, sid, nullptr, hdl, no_stages, message_id::make(),
+            self->state.stage, sid, nullptr, hdl, no_stages, make_message_id(),
             stream_priority::normal, std::make_tuple()))
         return none;
       self->drop_current_message_id();

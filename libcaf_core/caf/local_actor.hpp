@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -185,7 +184,7 @@ public:
   /// Sends an exit message to `dest`.
   template <class ActorHandle>
   void send_exit(const ActorHandle& dest, error reason) {
-    dest->eq_impl(message_id::make(), ctrl(), context(),
+    dest->eq_impl(make_message_id(), ctrl(), context(),
                   exit_msg{address(), std::move(reason)});
   }
 
@@ -205,6 +204,11 @@ public:
   inline actor_system& system() const {
     CAF_ASSERT(context_);
     return context_->system();
+  }
+
+  /// Returns the clock of the actor system.
+  inline actor_clock& clock() const {
+    return home_system().clock();
   }
 
   /// @cond PRIVATE

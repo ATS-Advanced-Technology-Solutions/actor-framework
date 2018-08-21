@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -29,6 +28,8 @@
 
 #include "caf/scheduler/worker.hpp"
 #include "caf/scheduler/abstract_coordinator.hpp"
+
+#include "caf/detail/thread_safe_actor_clock.hpp"
 
 namespace caf {
 namespace scheduler {
@@ -69,6 +70,10 @@ protected:
     // start all workers now that all workers have been initialized
     for (auto& w : workers_)
       w->start();
+    // launch thread for dispatching timeouts and delayed messages
+    timer_ = std::thread{[&] {
+      clock_.run_dispatch_loop();
+    }};
     // run remaining startup code
     super::start();
   }
@@ -128,19 +133,34 @@ protected:
     for (auto& w : workers_)
       policy_.foreach_resumable(w.get(), f);
     policy_.foreach_central_resumable(this, f);
+    // stop timer thread
+    clock_.cancel_dispatch_loop();
+    timer_.join();
   }
 
   void enqueue(resumable* ptr) override {
     policy_.central_enqueue(this, ptr);
   }
 
+  detail::thread_safe_actor_clock& clock() noexcept override {
+    return clock_;
+  }
+
 private:
-  // usually of size std::thread::hardware_concurrency()
+  /// System-wide clock.
+  detail::thread_safe_actor_clock clock_;
+
+  /// Set of workers.
   std::vector<std::unique_ptr<worker_type>> workers_;
-  // policy-specific data
+
+  /// Policy-specific data.
   policy_data data_;
-  // instance of our policy object
+
+  /// The policy object.
   Policy policy_;
+
+  /// Thread for managing timeouts and delayed messages.
+  std::thread timer_;
 };
 
 } // namespace scheduler

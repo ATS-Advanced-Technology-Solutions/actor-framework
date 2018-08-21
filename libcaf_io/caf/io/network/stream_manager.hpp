@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -41,6 +40,9 @@ public:
   /// Called by the underlying I/O device whenever it sent data.
   virtual void data_transferred(execution_unit* ctx, size_t num_bytes,
                                 size_t remaining_bytes) = 0;
+
+  /// Get the port of the underlying I/O device.
+  virtual uint16_t port() const = 0;
 };
 
 } // namespace network

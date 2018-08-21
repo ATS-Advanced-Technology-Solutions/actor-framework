@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -66,8 +65,9 @@ void local_actor::request_response_timeout(const duration& d, message_id mid) {
   CAF_LOG_TRACE(CAF_ARG(d) << CAF_ARG(mid));
   if (!d.valid())
     return;
-  system().scheduler().delayed_send(d, ctrl(), ctrl(), mid.response_id(),
-                                    make_message(sec::request_timeout));
+  auto t = clock().now();
+  t += d;
+  clock().set_request_timeout(t, this, mid.response_id());
 }
 
 void local_actor::monitor(abstract_actor* ptr) {
@@ -157,7 +157,7 @@ void local_actor::send_exit(const actor_addr& whom, error reason) {
 void local_actor::send_exit(const strong_actor_ptr& dest, error reason) {
   if (!dest)
     return;
-  dest->get()->eq_impl(message_id::make(), nullptr, context(),
+  dest->get()->eq_impl(make_message_id(), nullptr, context(),
                        exit_msg{address(), std::move(reason)});
 }
 
@@ -186,6 +186,7 @@ bool local_actor::cleanup(error&& fail_state, execution_unit* host) {
   // tell registry we're done
   unregister_from_system();
   monitorable_actor::cleanup(std::move(fail_state), host);
+  clock().cancel_timeouts(this);
   CAF_LOG_TERMINATE_EVENT(this, fail_state);
   return true;
 }

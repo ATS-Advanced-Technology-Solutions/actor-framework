@@ -24,6 +24,13 @@ set (LIBCAF_IO_SRCS
      src/scribe.cpp
      src/stream_manager.cpp
      src/test_multiplexer.cpp
+     src/acceptor_manager.cpp
+     src/multiplexer.cpp
+     src/datagram_servant.cpp
+     src/datagram_manager.cpp
+     src/ip_endpoint.cpp
+     src/connection_helper.cpp
+     src/receive_buffer.cpp
      # BASP files
      src/header.cpp
      src/message_type.cpp
@@ -35,7 +42,7 @@ add_custom_target(libcaf_io)
 # build shared library if not compiling static only
 if (NOT CAF_BUILD_STATIC_ONLY)
   add_library(libcaf_io_shared SHARED ${LIBCAF_IO_SRCS} ${LIBCAF_IO_HDRS})
-  target_link_libraries(libcaf_io_shared ${LD_FLAGS} ${CAF_LIBRARY_CORE})
+  target_link_libraries(libcaf_io_shared ${LDFLAGS} ${CAF_LIBRARY_CORE})
   set_target_properties(libcaf_io_shared
                         PROPERTIES
                         SOVERSION ${CAF_VERSION}
@@ -52,7 +59,7 @@ endif ()
 # build static library only if --build-static or --build-static-only was set
 if (CAF_BUILD_STATIC_ONLY OR CAF_BUILD_STATIC)
   add_library(libcaf_io_static STATIC ${LIBCAF_IO_HDRS} ${LIBCAF_IO_SRCS})
-  target_link_libraries(libcaf_io_static ${LD_FLAGS} ${CAF_LIBRARY_CORE_STATIC})
+  target_link_libraries(libcaf_io_static ${LDFLAGS} ${CAF_LIBRARY_CORE_STATIC})
   set_target_properties(libcaf_io_static PROPERTIES OUTPUT_NAME caf_io_static)
   install(TARGETS libcaf_io_static ARCHIVE DESTINATION lib)
   add_dependencies(libcaf_io_static libcaf_io)

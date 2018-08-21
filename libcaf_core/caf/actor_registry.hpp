@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -29,6 +28,7 @@
 
 #include "caf/fwd.hpp"
 #include "caf/actor.hpp"
+#include "caf/actor_cast.hpp"
 #include "caf/abstract_actor.hpp"
 #include "caf/actor_control_block.hpp"
 
@@ -49,10 +49,16 @@ public:
   ~actor_registry();
 
   /// Returns the local actor associated to `key`.
-  strong_actor_ptr get(actor_id key) const;
+  template<class T = strong_actor_ptr>
+  T get(actor_id key) const {
+      return actor_cast<T>(get_impl(key));
+  }
 
   /// Associates a local actor with its ID.
-  void put(actor_id key, strong_actor_ptr val);
+  template<class T>
+  void put(actor_id key, const T& val) {
+      put_impl(key, actor_cast<strong_actor_ptr>(val));
+  }
 
   /// Removes an actor from this registry,
   /// leaving `reason` for future reference.
@@ -72,10 +78,17 @@ public:
   void await_running_count_equal(size_t expected) const;
 
   /// Returns the actor associated with `key` or `invalid_actor`.
-  strong_actor_ptr get(atom_value key) const;
+  template<class T = strong_actor_ptr>
+  T get(atom_value key) const {
+      return actor_cast<T>(get_impl(key));
+  }
 
   /// Associates given actor to `key`.
-  void put(atom_value key, strong_actor_ptr value);
+  template<class T>
+  void put(atom_value key, const T& value) {
+      // using reference here and before to allow putting a scoped_actor without calling .ptr()
+      put_impl(key, actor_cast<strong_actor_ptr>(value));
+  }
 
   /// Removes a name mapping.
   void erase(atom_value key);
@@ -90,6 +103,18 @@ private:
 
   // Stops this component.
   void stop();
+
+  /// Returns the local actor associated to `key`.
+  strong_actor_ptr get_impl(actor_id key) const;
+
+  /// Associates a local actor with its ID.
+  void put_impl(actor_id key, strong_actor_ptr val);
+
+  /// Returns the actor associated with `key` or `invalid_actor`.
+  strong_actor_ptr get_impl(atom_value key) const;
+
+  /// Associates given actor to `key`.
+  void put_impl(atom_value key, strong_actor_ptr value);
 
   using entries = std::unordered_map<actor_id, strong_actor_ptr>;
 

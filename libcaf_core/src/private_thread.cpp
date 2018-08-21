@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -19,6 +18,8 @@
 
 #include "caf/detail/private_thread.hpp"
 
+#include "caf/config.hpp"
+#include "caf/logger.hpp"
 #include "caf/scheduled_actor.hpp"
 
 namespace caf {
@@ -34,7 +35,8 @@ private_thread::private_thread(scheduled_actor* self)
 }
 
 void private_thread::run() {
-  auto job = const_cast<scheduled_actor*>(self_);
+  auto job = self_.load();
+  CAF_ASSERT(job != nullptr);
   CAF_SET_LOGGER_SYS(&job->system());
   CAF_PUSH_AID(job->id());
   CAF_LOG_TRACE("");

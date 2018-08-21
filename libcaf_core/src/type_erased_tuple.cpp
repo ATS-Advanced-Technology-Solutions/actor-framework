@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -101,11 +100,11 @@ uint32_t empty_type_erased_tuple::type_token() const noexcept {
 }
 
 auto empty_type_erased_tuple::type(size_t) const noexcept -> rtti_pair {
-  CAF_RAISE_ERROR("empty_type_erased_tuple::type");
+  CAF_CRITICAL("empty_type_erased_tuple::type");
 }
 
 const void* empty_type_erased_tuple::get(size_t) const noexcept {
-  CAF_RAISE_ERROR("empty_type_erased_tuple::get");
+  CAF_CRITICAL("empty_type_erased_tuple::get");
 }
 
 std::string empty_type_erased_tuple::stringify(size_t) const {

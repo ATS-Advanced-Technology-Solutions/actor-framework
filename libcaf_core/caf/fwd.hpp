@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -49,6 +48,7 @@ template <class, class, class> class random_topic_scatterer;
 // -- variadic templates -------------------------------------------------------
 
 template <class...> class result;
+template <class...> class variant;
 template <class...> class delegated;
 template <class...> class typed_actor;
 template <class...> class typed_actor_pointer;
@@ -75,6 +75,7 @@ class actor_addr;
 class actor_pool;
 class message_id;
 class serializer;
+class actor_clock;
 class actor_proxy;
 class local_actor;
 class ref_counted;

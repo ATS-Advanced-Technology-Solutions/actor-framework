@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -792,7 +791,7 @@ public:
     stream<T> token{sid};
     auto ys = std::tuple_cat(std::forward_as_tuple(token), std::move(xs));;
     next->enqueue(make_mailbox_element(
-                    mptr->sender, ignore_mid ? message_id::make() : mptr->mid,
+                    mptr->sender, ignore_mid ? make_message_id() : mptr->mid,
                     std::move(stages),
                     make<stream_msg::open>(
                       sid, address(), make_message_from_tuple(std::move(ys)),
