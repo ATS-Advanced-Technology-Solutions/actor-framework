@@ -27,7 +27,6 @@
 #include "caf/resumable.hpp"
 #include "caf/actor_system.hpp"
 
-
 namespace caf {
 namespace scheduler {
 

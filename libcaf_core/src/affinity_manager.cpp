@@ -30,15 +30,14 @@
 #include <windows.h>
 #endif // CAF_WINDOWS
 
-#include<set>
-
 #include "caf/affinity/affinity_manager.hpp"
+
+#include<set>
 
 #include "caf/actor_system_config.hpp"
 #include "caf/defaults.hpp"
 
 namespace caf {
-
 namespace affinity {
 
 manager::manager(actor_system& sys)
