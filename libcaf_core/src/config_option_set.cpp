@@ -150,6 +150,9 @@ auto config_option_set::parse(config_map& config, argument_iterator first,
             && slice.substr(0, 1) != "\""
             && slice.size() <= 10) {
           *val = atom_from_string(std::string{slice.begin(), slice.end()});
+        } else if (opt.type_name() == "string" && std::string(val->type_name()) == "integer") {
+        // Manage the case in which a string parameter is a single number
+          *val = std::string{slice.begin(), slice.end()};
         } else {
           return pec::type_mismatch;
         }

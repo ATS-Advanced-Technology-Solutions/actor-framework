@@ -79,8 +79,6 @@ expected<config_value> config_value::parse(string_view::iterator first,
     case '\'':
       return make_error(res.code);
     default:
-      if (isdigit(*i))
-        return make_error(res.code);
       return config_value{std::string{first, last}};
   }
 }
