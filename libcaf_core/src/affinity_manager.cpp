@@ -33,12 +33,50 @@
 #include "caf/affinity/affinity_manager.hpp"
 
 #include<set>
+#include <iostream>
 
 #include "caf/actor_system_config.hpp"
 #include "caf/defaults.hpp"
+#include "caf/detail/private_thread.hpp"
 
 namespace caf {
 namespace affinity {
+
+#if defined(CAF_LINUX) || defined(CAF_BSD)
+void _set_thread_affinity(pid_t pid, std::set<int> cores){
+    if (cores.size()) {
+		// Create a cpu_set_t object representing a set of CPUs.
+		// Clear it and mark only CPU i as set.
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		
+		for (int const& c : cores) {
+			//printf("Thread %p running on core %d\n", (void*)pthread_self(), c);
+			CPU_SET(c, &cpuset);
+			};
+		
+		if (sched_setaffinity(pid, sizeof(cpu_set_t), &cpuset)<0) {
+			//perror("sched_setaffinity");
+			std::cerr << "Error setting affinity\n";		
+		}
+	}
+}
+#elif defined(CAF_WINDOWS)
+void _set_thread_affinity(HANDLE handler, std::set<int> cores){
+	if (cores.size()) {
+	    // we do not conside the process affinity map 
+	    DWORD_PTR mask = 0;
+	    for (int const& c : cores) {
+		    mask |= (static_cast<DWORD_PTR>(1) << c);
+		  };
+		// TODO: check if this work
+	    auto ret = SetThreadAffinityMask(handler, mask);
+	    if (ret == 0) {
+			  std::cerr << "Error setting affinity\n";
+	    }
+	}
+}
+#endif
 
 manager::manager(actor_system& sys)
     : system_(sys) {
@@ -57,40 +95,43 @@ void manager::set_affinity(const actor_system::thread_type tt) {
 	auto& atomics =atomics_[tt];
 	size_t id = atomics.fetch_add(1) % cores.size();
 	auto Set{cores[id]};
-	if (Set.size()) {
-
+	 // Set the affinity of the thread
 #if defined(CAF_LINUX) || defined(CAF_BSD)
-	    // Create a cpu_set_t object representing a set of CPUs.
-	    // Clear it and mark only CPU i as set.
-	    cpu_set_t cpuset;
-	    CPU_ZERO(&cpuset);
-	    
-	    std::for_each(Set.begin(), Set.end(), [&cpuset](int const& c) { 
-		    //printf("Thread %p running on core %d\n", (void*)pthread_self(), c);
-		    CPU_SET(c, &cpuset);
-		});
-	    
-	    if (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset)<0) {
-		//perror("sched_setaffinity");
-		std::cerr << "Error setting affinity\n";		
-	    }
+  	_set_thread_affinity(0, Set);
 #elif defined(CAF_WINDOWS)
-	    // we do not conside the process affinity map 
-	    DWORD_PTR mask = 0;
-	    std::for_each(Set.begin(), Set.end(), [&cpuset](int const& c) { 
-		    mask |= (static_cast<DWORD_PTR>(1) << c);
-		});
-	    auto ret = SetThreadAffinityMask(GetCurrentThread(),mask);
-	    if (ret == 0) {
-		std::cerr << "Error setting affinity\n";
-	    }
+	_set_thread_affinity(GetCurrentThread(), Set);
 #elif defined(CAF_MACOS)
-	    std::cerr << "Thread affiity ignored in this platform\n";
+	std::cerr << "Thread affinity ignored in this platform\n";
 #else
-	    std::cerr << "Thread affiity not supported in this platform\n";
-#endif    
-	}
+	std::cerr << "Thread affinity not supported in this platform\n";
+#endif
     }
+}
+
+void manager::set_actor_affinity(actor actor_handler, std::set<int> cores) {
+  // TODO: remove method .gett()
+  scheduled_actor* sched_actor = reinterpret_cast<scheduled_actor*>(actor_handler.gett());
+
+  // Get the private thread if any
+  detail::private_thread* thread = sched_actor->private_thread_;
+  CAF_ASSERT(thread != nullptr);
+  if (thread == 0) {
+    // TODO: implement errors using https://actor-framework.readthedocs.io/en/stable/Error.html
+    CAF_RAISE_ERROR("set_actor_affinity can be used only with detached actors.");
+  }
+
+  // Set the affinity of the thread
+#if defined(CAF_LINUX) || defined(CAF_BSD)
+    auto pid = thread->get_native_pid();
+	// std::cout << "[DEBUG] pid: " << pid << std::endl;
+  	_set_thread_affinity(pid, cores);
+#elif defined(CAF_WINDOWS)
+	_set_thread_affinity_windows(thread->get_native_pid(), cores);
+#elif defined(CAF_MACOS)
+	std::cerr << "Thread affinity ignored in this platform\n";
+#else
+	std::cerr << "Thread affinity not supported in this platform\n";
+#endif
 }
 
 std::string manager::getaffinityset(std::string& affinitystring) {
@@ -212,6 +253,7 @@ actor_system::module::id_t manager::id() const {
 void* manager::subtype_ptr() {
     return this;
 }
+
 
 } // namespace affinity
 } // namespace caf

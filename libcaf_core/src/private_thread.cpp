@@ -30,7 +30,8 @@ private_thread::private_thread(scheduled_actor* self)
     : self_destroyed_(false),
       self_(self),
       state_(active),
-      system_(self->system()) {
+      system_(self->system()),
+      native_pid_{0} {
   intrusive_ptr_add_ref(self->ctrl());
   system_.inc_detached_threads();
 }
@@ -88,6 +89,9 @@ void private_thread::shutdown() {
 }
 
 void private_thread::exec(private_thread* this_ptr) {
+  // store my native pid
+  this_ptr->set_native_pid();
+  // run the thread
   detail::set_thread_name("caf.actor");
   this_ptr->system_.thread_started(actor_system::private_thread);
   this_ptr->run();
@@ -115,6 +119,36 @@ void private_thread::await_self_destroyed() {
 
 void private_thread::start() {
   std::thread{exec, this}.detach();
+}
+
+auto private_thread::get_native_pid()
+#if defined(CAF_LINUX) || defined(CAF_BSD)
+  -> pid_t
+#elif defined(CAF_WINDOWS)
+  // TODO: test windows version
+  -> HANDLE
+#endif
+{
+  pid_t pid;
+  while ((pid = native_pid_.load(std::memory_order_relaxed)) == 0){
+    // wait that the thread update the value
+  }
+#if defined(CAF_LINUX) || defined(CAF_BSD)
+  return pid;
+#elif defined(CAF_WINDOWS)
+  // TODO: test windows version
+  return native_handler_;
+#endif
+}
+
+void private_thread::set_native_pid(){
+#if defined(CAF_LINUX) || defined(CAF_BSD)
+  native_pid_.store(syscall(SYS_gettid), std::memory_order_relaxed);
+#elif defined(CAF_WINDOWS)
+  // TODO: test windows version
+  native_pid_.store(GetCurrentThreadId(), std::memory_order_relaxed);
+  native_handler_ = GetCurrentThread();
+#endif
 }
 
 } // namespace detail

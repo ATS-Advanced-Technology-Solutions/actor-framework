@@ -21,8 +21,11 @@
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <unistd.h>
+#include <syscall.h>
 
 #include "caf/fwd.hpp"
+#include "caf/config.hpp"
 
 namespace caf {
 namespace detail {
@@ -53,13 +56,25 @@ public:
 
   void start();
 
+#if defined(CAF_LINUX) || defined(CAF_BSD)
+  pid_t get_native_pid();
+#elif defined(CAF_WINDOWS)
+  HANDLE get_native_pid();
+#endif
+
 private:
+  void set_native_pid();
+
   std::mutex mtx_;
   std::condition_variable cv_;
   std::atomic<bool> self_destroyed_;
   std::atomic<scheduled_actor*> self_;
   std::atomic<worker_state> state_;
   actor_system& system_;
+  std::atomic<pid_t> native_pid_;
+#if defined(CAF_WINDOWS)
+  HANDLE native_handler_;
+#endif
 };
 
 } // namespace detail

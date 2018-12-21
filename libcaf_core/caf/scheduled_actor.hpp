@@ -30,6 +30,7 @@
 #include <unordered_map>
 
 #include "caf/actor_marker.hpp"
+#include "caf/affinity/affinity_manager.hpp"
 #include "caf/broadcast_downstream_manager.hpp"
 #include "caf/default_downstream_manager.hpp"
 #include "caf/error.hpp"
@@ -108,6 +109,7 @@ result<message> drop(scheduled_actor*, message_view&);
 /// A cooperatively scheduled, event-based actor implementation.
 /// @extends local_actor
 class scheduled_actor : public local_actor, public resumable {
+  friend class affinity::manager;
 public:
   // -- nested enums -----------------------------------------------------------
 

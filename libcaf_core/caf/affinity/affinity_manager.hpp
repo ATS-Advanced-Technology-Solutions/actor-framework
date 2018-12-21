@@ -26,6 +26,7 @@
 #include <atomic>
 
 #include "caf/actor_system.hpp"
+#include "caf/scheduled_actor.hpp"
 
 namespace caf {
 namespace affinity {
@@ -59,6 +60,8 @@ public:
     }
     
     void set_affinity(actor_system::thread_type tt); 
+
+    void set_actor_affinity(actor, std::set<int>);
 
     void start() override;
     
