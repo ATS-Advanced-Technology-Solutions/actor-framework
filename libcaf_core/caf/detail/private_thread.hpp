@@ -18,14 +18,27 @@
 
 #pragma once
 
+#ifdef CAF_LINUX
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif // _GNU_SOURCE
+#include <unistd.h>
+#include <syscall.h>
+#endif // CAF_LINUX
+
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
-#include <unistd.h>
-#include <syscall.h>
 
 #include "caf/fwd.hpp"
 #include "caf/config.hpp"
+
+#ifdef CAF_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif // WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif // CAF_WINDOWS
 
 namespace caf {
 namespace detail {
@@ -71,7 +84,7 @@ private:
   std::atomic<scheduled_actor*> self_;
   std::atomic<worker_state> state_;
   actor_system& system_;
-  std::atomic<pid_t> native_pid_;
+  std::atomic<int> native_pid_;
 #if defined(CAF_WINDOWS)
   HANDLE native_handler_;
 #endif

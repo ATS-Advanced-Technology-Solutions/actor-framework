@@ -129,7 +129,7 @@ auto private_thread::get_native_pid()
   -> HANDLE
 #endif
 {
-  pid_t pid;
+  int pid;
   while ((pid = native_pid_.load(std::memory_order_relaxed)) == 0){
     // wait that the thread update the value
   }

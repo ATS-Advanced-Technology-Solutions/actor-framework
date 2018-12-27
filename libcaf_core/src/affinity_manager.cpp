@@ -23,12 +23,6 @@
 #endif // _GNU_SOURCE
 #include <sched.h>
 #endif // CAF_LINUX
-#ifdef CAF_WINDOWS
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif // WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif // CAF_WINDOWS
 
 #include "caf/affinity/affinity_manager.hpp"
 
@@ -38,6 +32,13 @@
 #include "caf/actor_system_config.hpp"
 #include "caf/defaults.hpp"
 #include "caf/detail/private_thread.hpp"
+
+#ifdef CAF_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif // WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif // CAF_WINDOWS
 
 namespace caf {
 namespace affinity {
@@ -126,7 +127,7 @@ void manager::set_actor_affinity(actor actor_handler, std::set<int> cores) {
 	// std::cout << "[DEBUG] pid: " << pid << std::endl;
   	_set_thread_affinity(pid, cores);
 #elif defined(CAF_WINDOWS)
-	_set_thread_affinity_windows(thread->get_native_pid(), cores);
+	_set_thread_affinity(thread->get_native_pid(), cores);
 #elif defined(CAF_MACOS)
 	std::cerr << "Thread affinity ignored in this platform\n";
 #else
