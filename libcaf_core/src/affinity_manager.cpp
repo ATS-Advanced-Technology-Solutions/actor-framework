@@ -23,19 +23,20 @@
 #endif // _GNU_SOURCE
 #include <sched.h>
 #endif // CAF_LINUX
+
+#include "caf/affinity/affinity_manager.hpp"
+
+#include <set>
+
+#include "caf/actor_system_config.hpp"
+#include "caf/defaults.hpp"
+
 #ifdef CAF_WINDOWS
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif // WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif // CAF_WINDOWS
-
-#include "caf/affinity/affinity_manager.hpp"
-
-#include<set>
-
-#include "caf/actor_system_config.hpp"
-#include "caf/defaults.hpp"
 
 namespace caf {
 namespace affinity {
@@ -77,7 +78,7 @@ void manager::set_affinity(const actor_system::thread_type tt) {
 #elif defined(CAF_WINDOWS)
 	    // we do not conside the process affinity map 
 	    DWORD_PTR mask = 0;
-	    std::for_each(Set.begin(), Set.end(), [&cpuset](int const& c) { 
+        std::for_each(Set.begin(), Set.end(), [&mask](int const& c) { 
 		    mask |= (static_cast<DWORD_PTR>(1) << c);
 		});
 	    auto ret = SetThreadAffinityMask(GetCurrentThread(),mask);
