@@ -18,27 +18,12 @@
 
 #pragma once
 
-#ifdef CAF_LINUX
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif // _GNU_SOURCE
-#include <unistd.h>
-#include <syscall.h>
-#endif // CAF_LINUX
-
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
 
 #include "caf/fwd.hpp"
 #include "caf/config.hpp"
-
-#ifdef CAF_WINDOWS
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif // WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif // CAF_WINDOWS
 
 namespace caf {
 namespace detail {
@@ -69,11 +54,7 @@ public:
 
   void start();
 
-#if defined(CAF_LINUX) || defined(CAF_BSD)
-  pid_t get_native_pid();
-#elif defined(CAF_WINDOWS)
-  HANDLE get_native_pid();
-#endif
+  int get_native_pid();
 
 private:
   void set_native_pid();
@@ -85,11 +66,7 @@ private:
   std::atomic<worker_state> state_;
   actor_system& system_;
   std::atomic<int> native_pid_;
-#if defined(CAF_WINDOWS)
-  HANDLE native_handler_;
-#endif
 };
 
 } // namespace detail
 } // namespace caf
-

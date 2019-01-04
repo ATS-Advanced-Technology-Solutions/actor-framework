@@ -18,6 +18,7 @@ endmacro()
 # introductionary applications
 add(. aout)
 add(. hello_world)
+add(. affinity_example)
 
 # basic message passing primitives
 add(message_passing calculator)

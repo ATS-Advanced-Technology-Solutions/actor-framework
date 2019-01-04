@@ -16,12 +16,24 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
+#ifdef CAF_LINUX
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif // _GNU_SOURCE
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif // CAF_LINUX
+
 #include "caf/detail/private_thread.hpp"
 
 #include "caf/config.hpp"
 #include "caf/detail/set_thread_name.hpp"
 #include "caf/logger.hpp"
 #include "caf/scheduled_actor.hpp"
+
+#ifdef CAF_WINDOWS
+#include <windows.h>
+#endif // CAF_WINDOWS
 
 namespace caf {
 namespace detail {
@@ -121,34 +133,24 @@ void private_thread::start() {
   std::thread{exec, this}.detach();
 }
 
-auto private_thread::get_native_pid()
-#if defined(CAF_LINUX) || defined(CAF_BSD)
-  -> pid_t
-#elif defined(CAF_WINDOWS)
-  // TODO: test windows version
-  -> HANDLE
-#endif
-{
+int private_thread::get_native_pid() {
   int pid;
   while ((pid = native_pid_.load(std::memory_order_relaxed)) == 0){
     // wait that the thread update the value
   }
-#if defined(CAF_LINUX) || defined(CAF_BSD)
   return pid;
-#elif defined(CAF_WINDOWS)
-  // TODO: test windows version
-  return native_handler_;
-#endif
 }
 
 void private_thread::set_native_pid(){
-#if defined(CAF_LINUX) || defined(CAF_BSD)
-  native_pid_.store(syscall(SYS_gettid), std::memory_order_relaxed);
+  int pid;
+#if defined(CAF_LINUX)
+  pid = syscall(SYS_gettid);
 #elif defined(CAF_WINDOWS)
-  // TODO: test windows version
-  native_pid_.store(GetCurrentThreadId(), std::memory_order_relaxed);
-  native_handler_ = GetCurrentThread();
+  pid = GetCurrentThreadId();
+#else
+  pid = 1;
 #endif
+  native_pid_.store(pid, std::memory_order_relaxed);
 }
 
 } // namespace detail

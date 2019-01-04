@@ -17,8 +17,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_AFFINITY_MANAGER_HPP
-#define CAF_AFFINITY_MANAGER_HPP
+#pragma once
 
 #include <string>
 #include <vector>
@@ -80,6 +79,7 @@ protected:
 
     std::string getaffinityset(std::string& affinitystring);
 
+	void set_thread_affinity(int pid, std::set<int>); 
 
     std::string worker_cores_;
     std::string detached_cores_;
@@ -94,6 +94,3 @@ protected:
 
 } // namespace affinity 
 } // namespace caf
-
-
-#endif // CAF_AFFINITY_MANAGER_HPP
