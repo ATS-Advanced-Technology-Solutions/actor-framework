@@ -1,6 +1,6 @@
 # Affinity Patch for the C++ Actor Framework
 
-The affinity path for CAF is a fork of the [C++ Actor Framework](https://github.com/actor-framework/actor-framework) that allow the use of the thread to core affinity feature of Linux and Windows.
+The affinity patch for CAF is a fork of the [C++ Actor Framework](https://github.com/actor-framework/actor-framework) that allow the use of the thread to core affinity feature of Linux and Windows.
 The thread to core affinity makes possible to stick CAF threads to a specific core in order to avoid the costly context switching of the OS.
 
 **NOTE:** We do not support versioning. We always try to push the affinity patch on the last available version of CAF. In order to be sure which CAF version you are using check the `CAF_VERSION` macro.
