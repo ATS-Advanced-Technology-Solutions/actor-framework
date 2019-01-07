@@ -60,7 +60,7 @@ void manager::set_affinity(const actor_system::thread_type tt) {
 	auto Set{cores[id]};
 	if (Set.size()) {
 
-#if defined(CAF_LINUX) || defined(CAF_BSD)
+#if defined(CAF_LINUX)
 	    // Create a cpu_set_t object representing a set of CPUs.
 	    // Clear it and mark only CPU i as set.
 	    cpu_set_t cpuset;
