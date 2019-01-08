@@ -228,6 +228,7 @@ CAF_TEST(successful parsing) {
   CAF_CHECK_EQUAL(get<atom_value>(parse("'abc'")), atom("abc"));
   CAF_CHECK_EQUAL(get<string>(parse("\"abc\"")), "abc");
   CAF_CHECK_EQUAL(get<string>(parse("abc")), "abc");
+  CAF_CHECK_EQUAL(get<string>(parse("1abc")), "1abc"); // accept strings starting with numbers
   CAF_CHECK_EQUAL(get<li>(parse("[1, 2, 3]")), li({1, 2, 3}));
   CAF_CHECK_EQUAL(get<ls>(parse("[\"abc\", \"def\", \"ghi\"]")),
                   ls({"abc", "def", "ghi"}));
@@ -243,8 +244,6 @@ CAF_TEST(unsuccessful parsing) {
       CAF_FAIL("assumed an error but got a result");
     return std::move(x.error());
   };
-  CAF_CHECK_EQUAL(parse("10msb"), pec::trailing_character);
-  CAF_CHECK_EQUAL(parse("10foo"), pec::trailing_character);
   CAF_CHECK_EQUAL(parse("[1,"), pec::unexpected_eof);
   CAF_CHECK_EQUAL(parse("{a=,"), pec::unexpected_character);
   CAF_CHECK_EQUAL(parse("{a=1,"), pec::unexpected_eof);
