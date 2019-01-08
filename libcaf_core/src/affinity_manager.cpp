@@ -17,13 +17,6 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifdef CAF_LINUX
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif // _GNU_SOURCE
-#include <sched.h>
-#endif // CAF_LINUX
-
 #include "caf/affinity/affinity_manager.hpp"
 
 #include <iostream>
@@ -33,6 +26,12 @@
 #include "caf/defaults.hpp"
 #include "caf/detail/private_thread.hpp"
 
+#ifdef CAF_LINUX
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif // _GNU_SOURCE
+#include <sched.h>
+#endif // CAF_LINUX
 #ifdef CAF_WINDOWS
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

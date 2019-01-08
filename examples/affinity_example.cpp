@@ -1,12 +1,13 @@
-#if defined(CAF_LINUX)
-#include <unistd.h>
-#endif
 
 #include <iostream>
 #include <math.h>
+#include <set>
 
 #include "caf/all.hpp"
 
+#if defined(CAF_LINUX)
+#include <unistd.h>
+#endif
 #if defined(CAF_WINDOWS)
 #include <windows.h>
 #endif
@@ -32,7 +33,7 @@ void caf_main(actor_system& system) {
   cout << "actors started" << endl;
 
 #if defined(CAF_LINUX)
-  sleep(15)
+  sleep(15);
 #elif defined(CAF_WINDOWS)
   Sleep(15000);
 #endif

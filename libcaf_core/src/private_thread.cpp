@@ -16,14 +16,6 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifdef CAF_LINUX
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif // _GNU_SOURCE
-#include <sys/syscall.h>
-#include <unistd.h>
-#endif // CAF_LINUX
-
 #include "caf/detail/private_thread.hpp"
 
 #include "caf/config.hpp"
@@ -31,6 +23,13 @@
 #include "caf/logger.hpp"
 #include "caf/scheduled_actor.hpp"
 
+#ifdef CAF_LINUX
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif // _GNU_SOURCE
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif // CAF_LINUX
 #ifdef CAF_WINDOWS
 #include <windows.h>
 #endif // CAF_WINDOWS
