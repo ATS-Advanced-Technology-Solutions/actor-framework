@@ -17,8 +17,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_AFFINITY_MANAGER_HPP
-#define CAF_AFFINITY_MANAGER_HPP
+#pragma once
 
 #include <string>
 #include <vector>
@@ -26,6 +25,7 @@
 #include <atomic>
 
 #include "caf/actor_system.hpp"
+#include "caf/scheduled_actor.hpp"
 
 namespace caf {
 namespace affinity {
@@ -60,6 +60,8 @@ public:
     
     void set_affinity(actor_system::thread_type tt); 
 
+    void set_actor_affinity(actor, std::set<int>);
+
     void start() override;
     
     void init(actor_system_config& cfg) override;
@@ -77,6 +79,7 @@ protected:
 
     std::string getaffinityset(std::string& affinitystring);
 
+	void set_thread_affinity(int pid, std::set<int>); 
 
     std::string worker_cores_;
     std::string detached_cores_;
@@ -91,6 +94,3 @@ protected:
 
 } // namespace affinity 
 } // namespace caf
-
-
-#endif // CAF_AFFINITY_MANAGER_HPP

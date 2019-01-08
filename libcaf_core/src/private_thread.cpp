@@ -23,6 +23,17 @@
 #include "caf/logger.hpp"
 #include "caf/scheduled_actor.hpp"
 
+#ifdef CAF_LINUX
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif // _GNU_SOURCE
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif // CAF_LINUX
+#ifdef CAF_WINDOWS
+#include <windows.h>
+#endif // CAF_WINDOWS
+
 namespace caf {
 namespace detail {
 
@@ -30,7 +41,8 @@ private_thread::private_thread(scheduled_actor* self)
     : self_destroyed_(false),
       self_(self),
       state_(active),
-      system_(self->system()) {
+      system_(self->system()),
+      native_pid_{0} {
   intrusive_ptr_add_ref(self->ctrl());
   system_.inc_detached_threads();
 }
@@ -88,6 +100,9 @@ void private_thread::shutdown() {
 }
 
 void private_thread::exec(private_thread* this_ptr) {
+  // store my native pid
+  this_ptr->set_native_pid();
+  // run the thread
   detail::set_thread_name("caf.actor");
   this_ptr->system_.thread_started(actor_system::private_thread);
   this_ptr->run();
@@ -115,6 +130,26 @@ void private_thread::await_self_destroyed() {
 
 void private_thread::start() {
   std::thread{exec, this}.detach();
+}
+
+int private_thread::get_native_pid() {
+  int pid;
+  while ((pid = native_pid_.load(std::memory_order_relaxed)) == 0){
+    // wait that the thread update the value
+  }
+  return pid;
+}
+
+void private_thread::set_native_pid(){
+  int pid;
+#if defined(CAF_LINUX)
+  pid = syscall(SYS_gettid);
+#elif defined(CAF_WINDOWS)
+  pid = GetCurrentThreadId();
+#else
+  pid = 1;
+#endif
+  native_pid_.store(pid, std::memory_order_relaxed);
 }
 
 } // namespace detail

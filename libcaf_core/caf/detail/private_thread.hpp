@@ -23,6 +23,7 @@
 #include <condition_variable>
 
 #include "caf/fwd.hpp"
+#include "caf/config.hpp"
 
 namespace caf {
 namespace detail {
@@ -53,15 +54,19 @@ public:
 
   void start();
 
+  int get_native_pid();
+
 private:
+  void set_native_pid();
+
   std::mutex mtx_;
   std::condition_variable cv_;
   std::atomic<bool> self_destroyed_;
   std::atomic<scheduled_actor*> self_;
   std::atomic<worker_state> state_;
   actor_system& system_;
+  std::atomic<int> native_pid_;
 };
 
 } // namespace detail
 } // namespace caf
-

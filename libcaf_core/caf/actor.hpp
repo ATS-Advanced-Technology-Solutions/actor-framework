@@ -69,6 +69,9 @@ public:
   template <class, class, int>
   friend class actor_cast_access;
 
+  // allow affinity manager to get the underline thread
+  friend class affinity::manager;
+
   // tell actor_cast which semantic this type uses
   static constexpr bool has_weak_ptr_semantics = false;
 
@@ -190,6 +193,12 @@ public:
 private:
   inline actor_control_block* get() const noexcept {
     return ptr_.get();
+  }
+
+  // TODO: remove this and use actor_control_block
+  inline abstract_actor* gett() const noexcept {
+    CAF_ASSERT(ptr_);
+    return ptr_->get();
   }
 
   inline actor_control_block* release() noexcept {
