@@ -23,7 +23,6 @@
 #include <condition_variable>
 
 #include "caf/fwd.hpp"
-#include "caf/config.hpp"
 
 namespace caf {
 namespace detail {
