@@ -18,67 +18,35 @@
 
 #pragma once
 
-#include <atomic>
 #include <set>
 #include <string>
 #include <vector>
 
-#include "caf/actor_system.hpp"
-#include "caf/scheduled_actor.hpp"
-
 namespace caf {
 namespace affinity {
 
-class manager : public actor_system::module {
+class parser {
 public:
-  using core_sets = std::vector<std::set<int>>;
-  using core_array = std::array<core_sets, actor_system::no_id>;
-  using atomic_array = std::array<std::atomic<size_t>, actor_system::no_id>;
-
-  explicit manager(actor_system& sys);
-
-  inline std::string worker_cores() const {
-    return worker_cores_;
-  }
-
-  inline std::string detached_cores() const {
-    return detached_cores_;
-  }
-
-  inline std::string blocking_cores() const {
-    return blocking_cores_;
-  }
-
-  inline std::string other_cores() const {
-    return other_cores_;
-  }
-
-  void set_affinity(actor_system::thread_type tt);
-
-  void set_actor_affinity(actor, std::set<int>);
-
-  void start() override;
-
-  void init(actor_system_config& cfg) override;
-
-  id_t id() const override;
-
-  void* subtype_ptr() override;
-
-protected:
-  void stop() override;
-  actor_system& system_;
+  static void parseaffinity(std::string affinitystr,
+                            std::vector<std::set<int>>& cores_groups);
 
 private:
-  void set_thread_affinity(int pid, std::set<int>);
+  static const char OPENGROUP;
+  static const char CLOSEGROUP;
+  static const char SETSEPARATOR;
+  static const char RANGESEPARATOR;
+  static const std::string SPACE;
 
-  std::string worker_cores_;
-  std::string detached_cores_;
-  std::string blocking_cores_;
-  std::string other_cores_;
+  static size_t ZERO;
+  static bool onlyspaceafter(std::string s, size_t next, size_t& pos=ZERO);
 
-  core_array cores_;
-  atomic_array atomics_;
+  static bool onlyspace(std::string s, size_t& pos=ZERO);
+
+  static int getsinglenum(std::string s);
+
+  static std::set<int> parseaffinitygroup(std::string s);
+
+  static std::string getaffinitygroup(std::string& affinitystring);
 };
 
 } // namespace affinity
