@@ -16,6 +16,7 @@ using namespace caf;
 using namespace std;
 
 void actor1(event_based_actor* self, int seconds) {
+  CAF_IGNORE_UNUSED(self);
   auto work = chrono::seconds(seconds);
   auto start = chrono::high_resolution_clock::now();
   do {
