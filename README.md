@@ -39,7 +39,7 @@ my_program --scheduler.worker-threads=4
            --affinity.other-cores="<4-7>"
 ```
 
-This resource partitioning avoids that CAF threads interrupt the CAF worker threads. Thus the event-based actor can be more reactive providing a reduce message latency. 
+This resource partitioning avoids that CAF threads interrupt the CAF worker threads. Thus the event-based actor can be more reactive providing a reduced message latency. 
 
 ### Controlling the affinity of detached actors
 
