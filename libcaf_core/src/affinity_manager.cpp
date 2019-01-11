@@ -18,13 +18,14 @@
 
 #include "caf/affinity/affinity_manager.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <set>
 
 #include "caf/actor_system_config.hpp"
+#include "caf/affinity/affinity_parser.hpp"
 #include "caf/defaults.hpp"
 #include "caf/detail/private_thread.hpp"
-#include "caf/affinity/affinity_parser.hpp"
 
 #ifdef CAF_LINUX
 #ifndef _GNU_SOURCE
@@ -69,21 +70,33 @@ void manager::init(actor_system_config& cfg) {
   parser::parseaffinity(other_cores_, other_cores);
 }
 
+bool manager::is_valide_cores(const core_group& cores) {
+  auto& private_cores = cores_[actor_system::private_thread];
+  core_group available_cores;
+  for (const core_group& group : private_cores) {
+    available_cores.insert(group.cbegin(), group.cend());
+  }
+  return available_cores.empty()
+         || std::includes(available_cores.cbegin(), available_cores.cend(),
+                          cores.cbegin(), cores.cend());
+}
+
 void manager::set_actor_affinity(actor actor_handler, std::set<int> cores) {
+  // Get the private thread if any
   // TODO: remove method .gett()
   scheduled_actor* sched_actor =
     reinterpret_cast<scheduled_actor*>(actor_handler.gett());
-
-  // Get the private thread if any
   detail::private_thread* thread = sched_actor->private_thread_;
-  CAF_ASSERT(thread != nullptr);
-  if (thread == 0) {
-    // TODO: implement errors using
-    // https://actor-framework.readthedocs.io/en/stable/Error.html
-    CAF_RAISE_ERROR(
-      "set_actor_affinity can be used only with detached actors.");
+  if (thread == nullptr) {
+    std::cerr << "[WARNING] only detached actors can move to different cores.\n";
+    return;
   }
-
+  // check if the cores set is contained in the detached core set
+  if (!is_valide_cores(cores)) {
+    std::cerr << "[WARNING] set affinity ignored,"
+              << "actors cannot be moved outside the predefined core set.\n";
+    return;
+  }
   // Set the affinity of the thread
   auto pid = thread->get_native_pid();
   set_thread_affinity(pid, cores);

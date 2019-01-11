@@ -39,12 +39,12 @@ void caf_main(actor_system& system) {
   auto& aff_manager = system.affinity_manager();
 
   // spawn event based
-  actor event1 = system.spawn(actor1, 45);
-  actor event2 = system.spawn(actor1, 45);
+  actor event1 = system.spawn(actor1, 30);
+  actor event2 = system.spawn(actor1, 30);
 
   // spawn blocking actors
-  actor block1 = system.spawn(actor2, 45);
-  actor block2 = system.spawn(actor2, 45);
+  actor block1 = system.spawn(actor2, 30);
+  actor block2 = system.spawn(actor2, 30);
 
   // spawn detached actors
   actor det1 = system.spawn<detached>(actor1, 30);
@@ -62,6 +62,8 @@ void caf_main(actor_system& system) {
   set<int> cores{1};
   aff_manager.set_actor_affinity(det1, cores);
   aff_manager.set_actor_affinity(det2, cores);
+  aff_manager.set_actor_affinity(event1, cores);
+  aff_manager.set_actor_affinity(block1, cores);
 
   cout << "actors moved" << endl;
 }

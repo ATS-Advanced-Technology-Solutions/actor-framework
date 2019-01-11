@@ -31,8 +31,9 @@ namespace affinity {
 
 class manager : public actor_system::module {
 public:
-  using core_sets = std::vector<std::set<int>>;
-  using core_array = std::array<core_sets, actor_system::no_id>;
+  using core_group = std::set<int>;
+  using core_groups = std::vector<core_group>;
+  using core_array = std::array<core_groups, actor_system::no_id>;
   using atomic_array = std::array<std::atomic<size_t>, actor_system::no_id>;
 
   explicit manager(actor_system& sys);
@@ -70,7 +71,8 @@ protected:
   actor_system& system_;
 
 private:
-  void set_thread_affinity(int pid, std::set<int>);
+  void set_thread_affinity(int pid, core_group cores);
+  bool is_valide_cores(const core_group& cores);
 
   std::string worker_cores_;
   std::string detached_cores_;
