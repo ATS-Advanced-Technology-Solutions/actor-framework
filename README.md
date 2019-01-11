@@ -8,7 +8,10 @@ In order to be sure which CAF version you are using check the `CAF_VERSION` macr
 
 
 ## How to use the affinity
+The affinity patch provides two ways to set threads to core affinity.
+Thought configurations parameters or programmatically via the `affinity_manager`.
 
+### Configuration parameters
 We permit to set different affinity configuration for individual CAF thread type (i.e. runtime threads, detached actor, blocking actor, and other caf threads).
 The affinity can be set dynamically set with the following configuration parameters in the `affinity` group:
 
@@ -23,6 +26,19 @@ A group hosts a collection of cores separated by commas `,` or a range of them d
 
 For example, the *affinity string* `"<0> <2-4> <1,5>"` allows placing the first thread spawned by CAF on the core with id 0, the second thread on the cores 2, 3 and 4, and the third thread on the cores 1 and 5.
 The next thread spawned will be placed again on the first group, i.e. core 0.
+
+### Affinity Manager
+
+The affinity manager provides the public method `set_actor_affinity` that can be used to move a detached actor to a specific set of cores.
+Note that a detached actor can also be moved multiple times and the last call overrides the previous affinity configurations.
+
+This is a simple example in which a detached actor is spawned and then moved to core 3 and 4.
+```(c++)
+  caf::actor det1 = system.spawn<caf::detached>(actor1);
+  auto& aff_manager = system.affinity_manager();
+  aff_manager.set_actor_affinity(det1, std::set<int>{3,4});
+```
+For more information check the example `examples/affinity_example.cpp`.
 
 ## Simple example
 
