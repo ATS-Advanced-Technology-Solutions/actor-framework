@@ -5,8 +5,7 @@
  *                     | |___ / ___ \|  _|      Framework                     *
  *                      \____/_/   \_|_|                                      *
  *                                                                            *
- * Copyright (C) 2011 - 2017                                                  *
- * Dominik Charousset <dominik.charousset (at) haw-hamburg.de>                *
+ * Copyright 2011-2018 Dominik Charousset                                     *
  *                                                                            *
  * Distributed under the terms and conditions of the BSD 3-Clause License or  *
  * (at your option) under the terms and conditions of the Boost Software      *
@@ -33,6 +32,13 @@
 #endif // _GNU_SOURCE
 #include <sched.h>
 #endif // CAF_LINUX
+
+#ifdef CAF_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define _GNU_SOURCE
+#endif // WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif // CAF_WINDOWS
 
 namespace caf {
 namespace affinity {
