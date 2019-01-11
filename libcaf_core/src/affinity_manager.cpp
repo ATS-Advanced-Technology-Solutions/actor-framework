@@ -123,13 +123,11 @@ void manager::set_thread_affinity(int pid, std::set<int> cores) {
   if (cores.size()) {
     HANDLE thread_ptr =
       pid != 0 ? OpenThread(THREAD_ALL_ACCESS, FALSE, pid) : GetCurrentThread();
-
     // we do not conside the process affinity map
     DWORD_PTR mask = 0;
     for (int const& c : cores) {
       mask |= (static_cast<DWORD_PTR>(1) << c);
     };
-    // TODO: check if this work
     auto ret = SetThreadAffinityMask(thread_ptr, mask);
     if (ret == 0) {
       std::cerr << "Error setting affinity\n";
