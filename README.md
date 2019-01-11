@@ -26,7 +26,7 @@ A group hosts a collection of cores separated by commas `,` or a range of them d
 For example, the *affinity string* `"<0> <2-4> <1,5>"` allows placing the first thread spawned by CAF on the core with id 0, the second thread on cores 2, 3 and 4, and the third thread on cores 1 and 5.
 The next thread spawned will be placed again on the first group, i.e. core 0.
 
-## Starting CAF with thread affinity
+### Starting CAF with thread affinity
 
 The following command runs a CAF program that confines the CAF worker threads in the first 4 cores of the CPU (from 0 to 3) and the blocking and detached actors together with all other system threads in the next 4 cores (from 4 to 7).
 
