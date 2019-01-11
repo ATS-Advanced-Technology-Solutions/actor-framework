@@ -27,7 +27,21 @@ A group hosts a collection of cores separated by commas `,` or a range of them d
 For example, the *affinity string* `"<0> <2-4> <1,5>"` allows placing the first thread spawned by CAF on the core with id 0, the second thread on cores 2, 3 and 4, and the third thread on cores 1 and 5.
 The next thread spawned will be placed again on the first group, i.e. core 0.
 
-### Affinity Manager
+## Starting CAF with thread affinity
+
+The following command runs a CAF program that confines the CAF worker threads in the first 4 cores of the CPU (from 0 to 3) and the blocking and detached actors together with all other system threads in the next 4 cores (from 4 to 7).
+
+```(bash)
+my_program --scheduler.worker-threads=4
+           --affinity.worker-cores="<0-3>"
+           --affinity.blocking-cores="<4-7>"
+           --affinity.detached-cores="<4-7>"
+           --affinity.other-cores="<4-7>"
+```
+
+This resource partitioning avoids that CAF threads interrupt the CAF worker threads. Thus the event-based actor can be more reactive providing a reduce message latency. 
+
+### Controlling the affinity of detached actors
 
 The affinity manager provides the public method `set_actor_affinity` that can be used to move a detached actor to a specific set of cores.
 Note that a detached actor can also be moved multiple times and the last call overrides the previous affinity configurations.
@@ -41,18 +55,6 @@ This is a simple example in which a detached actor is spawned and then moved to 
 ```
 
 For more information check the example `examples/affinity_example.cpp`.
-
-## Simple example
-
-The following command runs a CAF program that confines the CAF runtime thread in the first 4 cores of the CPU (from 0 to 3) and the blocking and detached actors in the next 4 cores (from 4 to 7).
-
-```(bash)
-my_program --scheduler.worker-threads=4
-           --affinity.worker-cores="<0-3>"
-           --affinity.detached-cores="<4-7>"
-```
-
-This resource partitioning avoids that other CAF threads interrupt the CAF runtime threads. Thus the event-based actor can be more reactive providing a reduce message latency. 
 
 ## Installation and Documentation
 
