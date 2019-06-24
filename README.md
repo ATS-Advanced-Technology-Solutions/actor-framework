@@ -5,14 +5,15 @@ The thread to core affinity makes it possible to bind CAF threads to a specific 
 
 **NOTE:** We do not support versioning. We always try to push the affinity patch on the last available version of CAF. In order to be sure which CAF version you are using check the `CAF_VERSION` macro.
 
-
 ## How to use the affinity
+
 The affinity patch provides two ways to set threads to core affinity.
 Thought configurations parameters or programmatically via the `affinity_manager`.
 
 ### Configuration parameters
-We permit to set different affinity configuration for individual CAF thread type (i.e. runtime threads, detached actor, blocking actor, and other caf threads).
-The affinity can be set dynamically set with the following configuration parameters in the `affinity` group:
+
+The patch permits to set different affinity configuration for individual CAF thread type (i.e. runtime threads, detached actor, blocking actor, and other caf threads).
+The affinity can be set by using the following configuration parameters in the `affinity` group:
 
 - `affinity.worker-cores`
 - `affinity.detached-cores`
@@ -57,7 +58,7 @@ For more information check the example `examples/affinity_example.cpp`.
 
 See the original CAF [repository](https://github.com/actor-framework/actor-framework) and [documentation](https://actor-framework.readthedocs.io/en/stable/).
 
-# License and Acknowledgement
+## License and Acknowledgement
 
 This software and the modifications are distributed with the CAF [LICENSE](./LICENSE).
 
