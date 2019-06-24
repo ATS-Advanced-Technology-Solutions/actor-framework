@@ -195,12 +195,6 @@ private:
     return ptr_.get();
   }
 
-  // TODO: remove this and use actor_control_block
-  inline abstract_actor* gett() const noexcept {
-    CAF_ASSERT(ptr_);
-    return ptr_->get();
-  }
-
   inline actor_control_block* release() noexcept {
     return ptr_.release();
   }

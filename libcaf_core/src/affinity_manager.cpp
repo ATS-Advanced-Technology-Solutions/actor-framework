@@ -83,9 +83,8 @@ bool manager::is_valide_cores(const core_group& cores) {
 
 void manager::set_actor_affinity(actor actor_handler, std::set<int> cores) {
   // Get the private thread if any
-  // TODO: remove method .gett()
   scheduled_actor* sched_actor =
-    reinterpret_cast<scheduled_actor*>(actor_handler.gett());
+    reinterpret_cast<scheduled_actor*>(actor_handler.get()->get());
   detail::private_thread* thread = sched_actor->private_thread_;
   if (thread == nullptr) {
     std::cerr << "[WARNING] only detached actors can move to different cores.\n";
