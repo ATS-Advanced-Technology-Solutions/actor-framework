@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ACTOR_FACTORY_HPP
-#define CAF_ACTOR_FACTORY_HPP
+#pragma once
 
 #include <set>
 #include <string>
@@ -148,8 +147,7 @@ actor_factory make_actor_factory(F fun) {
     message_verifier<typename trait::arg_types> mv;
     if (!mv(msg, tk))
       return {};
-    cfg.init_fun = [=](local_actor* x) -> behavior {
-      CAF_ASSERT(cfg.host);
+    cfg.init_fun = actor_config::init_fun_type{[=](local_actor* x) -> behavior {
       using ctrait = typename detail::get_callable_trait<F>::type;
       using fd = fun_decorator<F, impl, behavior_t, trait::mode,
                                typename ctrait::result_type,
@@ -161,7 +159,7 @@ actor_factory make_actor_factory(F fun) {
       if (!opt)
         return {};
       return std::move(*opt);
-    };
+    }};
     handle hdl = cfg.host->system().spawn_class<impl, no_spawn_options>(cfg);
     return {actor_cast<strong_actor_ptr>(std::move(hdl)),
             cfg.host->system().message_types<handle>()};
@@ -191,11 +189,6 @@ actor_factory_result dyn_spawn_class(actor_config& cfg, message& msg) {
 
 template <class T, class... Ts>
 actor_factory make_actor_factory() {
-  /*
-  static_assert(std::is_same<T*, decltype(new T(std::declval<actor_config&>(),
-                                                std::declval<Ts>()...))>::value,
-                "no constructor for T(Ts...) exists");
-  */
   static_assert(detail::conjunction<
                   std::is_lvalue_reference<Ts>::value...
                 >::value,
@@ -207,4 +200,3 @@ actor_factory make_actor_factory() {
 
 } // namespace caf
 
-#endif // CAF_ACTOR_FACTORY_HPP

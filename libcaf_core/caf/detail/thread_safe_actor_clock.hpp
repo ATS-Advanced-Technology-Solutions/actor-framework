@@ -16,13 +16,16 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_THREAD_SAFE_ACTOR_CLOCK_HPP
-#define CAF_DETAIL_THREAD_SAFE_ACTOR_CLOCK_HPP
+#pragma once
 
-#include <mutex>
+#include <array>
 #include <atomic>
 #include <condition_variable>
+#include <memory>
+#include <mutex>
 
+#include "caf/abstract_actor.hpp"
+#include "caf/detail/ringbuffer.hpp"
 #include "caf/detail/simple_actor_clock.hpp"
 
 namespace caf {
@@ -30,17 +33,26 @@ namespace detail {
 
 class thread_safe_actor_clock : public simple_actor_clock {
 public:
+  // -- constants --------------------------------------------------------------
+
+  static constexpr size_t buffer_size = 64;
+
+  // -- member types -----------------------------------------------------------
+
   using super = simple_actor_clock;
 
-  thread_safe_actor_clock();
+  // -- member functions -------------------------------------------------------
 
-  void set_receive_timeout(time_point t, abstract_actor* self,
-                           uint32_t id) override;
+  void set_ordinary_timeout(time_point t, abstract_actor* self,
+                           atom_value type, uint64_t id) override;
 
   void set_request_timeout(time_point t, abstract_actor* self,
                            message_id id) override;
 
-  void cancel_receive_timeout(abstract_actor* self) override;
+  void set_multi_timeout(time_point t, abstract_actor* self,
+                         atom_value type, uint64_t id) override;
+
+  void cancel_ordinary_timeout(abstract_actor* self, atom_value type) override;
 
   void cancel_request_timeout(abstract_actor* self, message_id id) override;
 
@@ -52,17 +64,21 @@ public:
   void schedule_message(time_point t, group target, strong_actor_ptr sender,
                         message content) override;
 
+  void cancel_all() override;
+
   void run_dispatch_loop();
 
   void cancel_dispatch_loop();
 
 private:
-  std::mutex mx_;
-  std::condition_variable cv_;
-  std::atomic<bool> done_;
+  void push(event* ptr);
+
+  /// Receives timer events from other threads.
+  detail::ringbuffer<unique_event_ptr, buffer_size> queue_;
+
+  /// Locally caches events for processing.
+  std::array<unique_event_ptr, buffer_size> events_;
 };
 
 } // namespace detail
 } // namespace caf
-
-#endif // CAF_DETAIL_THREAD_SAFE_ACTOR_CLOCK_HPP

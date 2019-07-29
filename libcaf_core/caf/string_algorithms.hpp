@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_STRING_ALGORITHMS_HPP
-#define CAF_STRING_ALGORITHMS_HPP
+#pragma once
 
 #include <cmath>     // fabs
 #include <string>
@@ -29,133 +28,53 @@
 
 #include "caf/config.hpp"
 #include "caf/detail/type_traits.hpp"
+#include "caf/string_view.hpp"
 
 namespace caf {
 
 // provide boost::split compatible interface
 
-inline std::string is_any_of(std::string arg) {
+inline string_view is_any_of(string_view arg) {
   return arg;
 }
 
 constexpr bool token_compress_on = false;
 
-template <class Container, class Delim>
-void split(Container& result, const std::string& str, const Delim& delims,
-           bool keep_all = true) {
-  size_t pos = 0;
-  size_t prev = 0;
-  while ((pos = str.find_first_of(delims, prev)) != std::string::npos) {
-    if (pos > prev) {
-      auto substr = str.substr(prev, pos - prev);
-      if (!substr.empty() || keep_all) {
-        result.push_back(std::move(substr));
-      }
-    }
-    prev = pos + 1;
-  }
-  if (prev < str.size()) {
-    result.push_back(str.substr(prev, std::string::npos));
-  }
-}
+void split(std::vector<std::string>& result, string_view str,
+           string_view delims, bool keep_all = true);
 
-template <class Iterator>
-class iterator_range {
-public:
-  using iterator = Iterator;
+void split(std::vector<string_view>& result, string_view str,
+           string_view delims, bool keep_all = true);
 
-  iterator_range(iterator first, iterator last) : begin_(first), end_(last) {
-    // nop
-  }
+void split(std::vector<std::string>& result, string_view str,
+           char delim, bool keep_all = true);
 
-  iterator begin() const {
-    return begin_;
-  }
+void split(std::vector<string_view>& result, string_view str,
+           char delim, bool keep_all = true);
 
-  iterator end() const {
-    return end_;
-  }
-
-private:
-  iterator begin_;
-  iterator end_;
-};
-
-
-template <class Container>
-std::string join(const Container& c, const std::string& glue) {
-  auto begin = c.begin();
-  auto end = c.end();
-  bool first = true;
+template <class InputIterator>
+std::string join(InputIterator first, InputIterator last, string_view glue) {
+  if (first == last)
+    return {};
   std::ostringstream oss;
-  for ( ; begin != end; ++begin) {
-    if (first)
-      first = false;
-    else
-      oss << glue;
-    oss << *begin;
-  }
+  oss << *first++;
+  for (; first != last; ++first)
+    oss << glue << *first;
   return oss.str();
 }
 
-// end of recursion
-inline void splice(std::string&, const std::string&) {
-  // nop
+template <class Container>
+std::string join(const Container& c, string_view glue) {
+  return join(c.begin(), c.end(), glue);
 }
 
-template <class T, class... Ts>
-void splice(std::string& str, const std::string& glue, T&& arg, Ts&&... xs) {
-  str += glue;
-  str += std::forward<T>(arg);
-  splice(str, glue, std::forward<Ts>(xs)...);
-}
+/// Replaces all occurrences of `what` by `with` in `str`.
+void replace_all(std::string& str, string_view what, string_view with);
 
-template <ptrdiff_t WhatSize, ptrdiff_t WithSize>
-void replace_all(std::string& str,
-                 const char (&what)[WhatSize],
-                 const char (&with)[WithSize]) {
-  // end(what) - 1 points to the null-terminator
-  auto next = [&](std::string::iterator pos) -> std::string::iterator {
-    return std::search(pos, str.end(), std::begin(what), std::end(what) - 1);
-  };
-  auto i = next(std::begin(str));
-  while (i != std::end(str)) {
-    auto before = std::distance(std::begin(str), i);
-    CAF_ASSERT(before >= 0);
-    str.replace(i, i + WhatSize - 1, with);
-    // i became invalidated -> use new iterator pointing
-    // to the first character after the replaced text
-    i = next(str.begin() + before + (WithSize - 1));
-  }
-}
+/// Returns whether `str` begins with `prefix`.
+bool starts_with(string_view str, string_view prefix);
 
-template<size_t S>
-bool starts_with(const std::string& str, const char (&prefix)[S]) {
-  return str.compare(0, S - 1, prefix) == 0;
-}
-
-template <size_t S>
-bool ends_with(const std::string& str, const char (&suffix)[S]) {
-  auto n = str.size();
-  auto m = S - 1;
-  if (n >= m)
-    return str.compare(n - m, m, suffix) == 0;
-  return false;
-}
-
-template <class T>
-typename std::enable_if<
-  std::is_arithmetic<T>::value,
-  std::string
->::type
-convert_to_str(T value) {
-  return std::to_string(value);
-}
-
-inline std::string convert_to_str(std::string value) {
-  return value;
-}
+/// Returns whether `str` ends with `suffix`.
+bool ends_with(string_view str, string_view suffix);
 
 } // namespace caf
-
-#endif // CAF_STRING_ALGORITHMS_HPP

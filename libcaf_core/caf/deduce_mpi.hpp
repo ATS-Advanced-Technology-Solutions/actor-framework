@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DEDUCE_MPI_HPP
-#define CAF_DEDUCE_MPI_HPP
+#pragma once
 
 #include <type_traits>
 
@@ -26,7 +25,6 @@
 #include "caf/expected.hpp"
 #include "caf/optional.hpp"
 #include "caf/replies_to.hpp"
-#include "caf/stream_result.hpp"
 
 #include "caf/detail/implicit_conversions.hpp"
 
@@ -52,21 +50,14 @@ struct dmi<result<Ys...> (Xs...)> {
                          output_tuple<implicit_conversions_t<Ys>...>>;
 };
 
-// case #2b: function returning a stream_result<...>
-template <class Y, class... Xs>
-struct dmi<stream_result<Y> (Xs...)> {
-  using type = typed_mpi<type_list<typename param_decay<Xs>::type...>,
-                         output_tuple<implicit_conversions_t<Y>>>;
-};
-
-// case #2c: function returning a std::tuple<...>
+// case #2b: function returning a std::tuple<...>
 template <class... Ys, class... Xs>
 struct dmi<std::tuple<Ys...> (Xs...)> {
   using type = typed_mpi<type_list<typename param_decay<Xs>::type...>,
                          output_tuple<implicit_conversions_t<Ys>...>>;
 };
 
-// case #2d: function returning a std::tuple<...>
+// case #2c: function returning a std::tuple<...>
 template <class... Ys, class... Xs>
 struct dmi<delegated<Ys...> (Xs...)> {
   using type = typed_mpi<type_list<typename param_decay<Xs>::type...>,
@@ -88,9 +79,9 @@ struct dmi<optional<Y> (Xs...)> : dmi<Y (Xs...)> {};
 template <class Y, class... Xs>
 struct dmi<expected<Y> (Xs...)> : dmi<Y (Xs...)> {};
 
-// case #5: function returning an annotated_stream<>
-template <class Y, class... Ys, class... Xs>
-struct dmi<annotated_stream<Y, Ys...> (Xs...)> : dmi<Y (Xs...)> {
+// case #5: function returning an output_stream<>
+template <class Y, class... Ys, class P, class... Xs>
+struct dmi<output_stream<Y, std::tuple<Ys...>, P> (Xs...)> : dmi<Y (Xs...)> {
   using type =
     typed_mpi<type_list<typename param_decay<Xs>::type...>,
               output_tuple<stream<Y>, strip_and_convert_t<Ys>...>>;
@@ -134,4 +125,3 @@ using deduce_mpi_t = typename detail::dmfou<typename param_decay<T>::type>::type
 
 } // namespace caf
 
-#endif // CAF_DEDUCE_MPI_HPP

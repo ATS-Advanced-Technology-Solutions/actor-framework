@@ -16,75 +16,78 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ARG_WRAPPER_HPP
-#define CAF_ARG_WRAPPER_HPP
+#pragma once
 
-#include <tuple>
 #include <string>
 
-#include "caf/detail/int_list.hpp"
-#include "caf/detail/type_list.hpp"
-#include "caf/detail/apply_args.hpp"
-#include "caf/detail/type_traits.hpp"
+#include "caf/deep_to_string.hpp"
 
 namespace caf {
 namespace detail {
 
 /// Enables automagical string conversion for `CAF_ARG`.
 template <class T>
-struct arg_wrapper {
+struct single_arg_wrapper {
   const char* name;
   const T& value;
-  arg_wrapper(const char* x, const T& y) : name(x), value(y) {
+  single_arg_wrapper(const char* x, const T& y) : name(x), value(y) {
     // nop
   }
 };
 
-template <class... Ts>
-struct named_args_tuple {
-  const std::array<const char*, sizeof...(Ts)>& names;
-  std::tuple<const Ts&...> xs;
+template <class T>
+std::string to_string(const single_arg_wrapper<T>& x) {
+  std::string result = x.name;
+  result += " = ";
+  result += deep_to_string(x.value);
+  return result;
+}
+
+template <class Iterator>
+struct range_arg_wrapper {
+  const char* name;
+  Iterator first;
+  Iterator last;
+  range_arg_wrapper(const char* x, Iterator begin, Iterator end)
+      : name(x),
+        first(begin),
+        last(end) {
+    // nop
+  }
 };
 
-template <class... Ts>
-named_args_tuple<Ts...>
-make_named_args_tuple(std::array<const char*, sizeof...(Ts)>& names,
-                      const Ts&... xs) {
-  return {names, std::forward_as_tuple(xs...)};
-};
-
-template <size_t I, class... Ts>
-auto get(const named_args_tuple<Ts...>& x)
--> arg_wrapper<typename type_at<I, Ts...>::type>{
-  CAF_ASSERT(x.names[I] != nullptr);
-  return {x.names[I], std::get<I>(x.xs)};
+template <class Iterator>
+std::string to_string(const range_arg_wrapper<Iterator>& x) {
+  std::string result = x.name;
+  result += " = ";
+  struct dummy {
+    Iterator first;
+    Iterator last;
+    Iterator begin() const {
+      return first;
+    }
+    Iterator end() const {
+      return last;
+    }
+  };
+  dummy y{x.first, x.last};
+  result += deep_to_string(y);
+  return result;
 }
 
 /// Used to implement `CAF_ARG`.
 template <class T>
-static arg_wrapper<T> make_arg_wrapper(const char* name, const T& value) {
+single_arg_wrapper<T> make_arg_wrapper(const char* name, const T& value) {
   return {name, value};
 }
 
-struct arg_wrapper_maker {
-  template <class... Ts>
-  auto operator()(const Ts&... xs) const -> decltype(std::make_tuple(xs...)) {
-    return std::make_tuple(xs...);
-  }
-};
-
-/// Used to implement `CAF_ARGS`.
-template <class... Ts>
-static std::tuple<arg_wrapper<Ts>...>
-make_args_wrapper(std::array<const char*, sizeof...(Ts)> names,
-                  const Ts&... xs) {
-  arg_wrapper_maker f;
-  typename il_range<0, sizeof...(Ts)>::type indices;
-  auto tup = make_named_args_tuple(names, xs...);
-  return apply_args(f, indices, tup);
+/// Used to implement `CAF_ARG`.
+template <class Iterator>
+range_arg_wrapper<Iterator> make_arg_wrapper(const char* name, Iterator first,
+                                             Iterator last) {
+  return {name, first, last};
 }
 
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_ARG_WRAPPER_HPP

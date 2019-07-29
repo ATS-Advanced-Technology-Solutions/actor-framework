@@ -1,4 +1,3 @@
-cmake_minimum_required(VERSION 2.8)
 project(caf_openssl C CXX)
 
 # get header files; only needed by CMake generators,
@@ -6,12 +5,13 @@ project(caf_openssl C CXX)
 file(GLOB_RECURSE LIBCAF_OPENSSL_HDRS "caf/*.hpp")
 
 # list cpp files excluding platform-dependent files
-set (LIBCAF_OPENSSL_SRCS
-     src/manager.cpp
-     src/middleman_actor.cpp
-     src/publish.cpp
-     src/remote_actor.cpp
-     src/session.cpp)
+set(LIBCAF_OPENSSL_SRCS
+  src/manager.cpp
+  src/middleman_actor.cpp
+  src/publish.cpp
+  src/remote_actor.cpp
+  src/session.cpp
+)
 
 add_custom_target(libcaf_openssl)
 
@@ -22,7 +22,7 @@ endif()
 if (NOT CAF_BUILD_STATIC_ONLY)
   add_library(libcaf_openssl_shared SHARED
               ${LIBCAF_OPENSSL_SRCS} ${LIBCAF_OPENSSL_HDRS})
-  target_link_libraries(libcaf_openssl_shared ${LD_FLAGS}
+  target_link_libraries(libcaf_openssl_shared ${CAF_EXTRA_LDFLAGS}
                         ${CAF_LIBRARY_CORE} ${CAF_LIBRARY_IO} ${OPENSSL_LIBRARIES})
 
   if(NOT APPLE AND NOT WIN32)
@@ -46,7 +46,7 @@ endif ()
 if (CAF_BUILD_STATIC_ONLY OR CAF_BUILD_STATIC)
   add_library(libcaf_openssl_static STATIC
               ${LIBCAF_OPENSSL_HDRS} ${LIBCAF_OPENSSL_SRCS})
-  target_link_libraries(libcaf_openssl_static ${LD_FLAGS}
+  target_link_libraries(libcaf_openssl_static ${CAF_EXTRA_LDFLAGS}
                         ${CAF_LIBRARY_CORE_STATIC} ${CAF_LIBRARY_IO_STATIC} ${OPENSSL_LIBRARIES})
   set_target_properties(libcaf_openssl_static PROPERTIES
                         OUTPUT_NAME caf_openssl_static)

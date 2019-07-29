@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_INPUT_RANGE_HPP
-#define CAF_INPUT_RANGE_HPP
+#pragma once
 
 #include <iterator>
 
@@ -41,6 +40,8 @@ public:
     iterator(input_range* range) : xs_(range) {
       if (xs_)
         advance();
+      else
+        x_ = nullptr;
     }
 
     iterator(const iterator&) = default;
@@ -113,9 +114,7 @@ private:
   I last_;
 };
 
-/**
- * @relates input_range
- */
+/// @relates input_range
 template <class I>
 input_range_impl<I> make_input_range(I first, I last) {
   return {first, last};
@@ -123,4 +122,3 @@ input_range_impl<I> make_input_range(I first, I last) {
 
 } // namespace caf
 
-#endif // CAF_INPUT_RANGE_HPP

@@ -21,7 +21,7 @@
 #include <signal.h>
 
 #define CAF_SUITE openssl_dynamic_remote_actor
-#include "caf/test/unit_test.hpp"
+#include "caf/test/dsl.hpp"
 
 #include <vector>
 #include <sstream>
@@ -46,6 +46,11 @@ public:
     add_message_type<std::vector<int>>("std::vector<int>");
     actor_system_config::parse(test::engine::argc(),
                                test::engine::argv());
+    // Setting the "max consecutive reads" to 1 is highly likely to cause
+    // OpenSSL to buffer data internally and report "pending" data after a read
+    // operation. This will trigger `must_read_more` in the SSL read policy
+    // with high probability.
+    set("middleman.max-consecutive-reads", 1);
   }
 };
 
@@ -148,46 +153,45 @@ CAF_TEST_FIXTURE_SCOPE(dynamic_remote_actor_tests, fixture)
 using openssl::remote_actor;
 using openssl::publish;
 
-CAF_TEST(identity_semantics) {
+CAF_TEST_DISABLED(identity_semantics) {
   // server side
   auto server = server_side.spawn(make_pong_behavior);
-  CAF_EXP_THROW(port1, publish(server, 0, local_host));
-  CAF_EXP_THROW(port2, publish(server, 0, local_host));
+  auto port1 = unbox(publish(server, 0, local_host));
+  auto port2 = unbox(publish(server, 0, local_host));
   CAF_REQUIRE_NOT_EQUAL(port1, port2);
-  CAF_EXP_THROW(same_server, remote_actor(server_side, local_host, port2));
+  auto same_server = unbox(remote_actor(server_side, local_host, port2));
   CAF_REQUIRE_EQUAL(same_server, server);
   CAF_CHECK_EQUAL(same_server->node(), server_side.node());
-  CAF_EXP_THROW(server1, remote_actor(client_side, local_host, port1));
-  CAF_EXP_THROW(server2, remote_actor(client_side, local_host, port2));
+  auto server1 = unbox(remote_actor(client_side, local_host, port1));
+  auto server2 = unbox(remote_actor(client_side, local_host, port2));
   CAF_CHECK_EQUAL(server1, remote_actor(client_side, local_host, port1));
   CAF_CHECK_EQUAL(server2, remote_actor(client_side, local_host, port2));
   anon_send_exit(server, exit_reason::user_shutdown);
 }
 
-CAF_TEST(ping_pong) {
+CAF_TEST_DISABLED(ping_pong) {
   // server side
-  CAF_EXP_THROW(port,
-                publish(server_side.spawn(make_pong_behavior), 0, local_host));
+  auto port = unbox(publish(server_side.spawn(make_pong_behavior),
+                            0, local_host));
   // client side
-  CAF_EXP_THROW(pong, remote_actor(client_side, local_host, port));
+  auto pong = unbox(remote_actor(client_side, local_host, port));
   client_side.spawn(make_ping_behavior, pong);
 }
 
-CAF_TEST(custom_message_type) {
+CAF_TEST_DISABLED(custom_message_type) {
   // server side
-  CAF_EXP_THROW(port,
-                publish(server_side.spawn(make_sort_behavior), 0, local_host));
+  auto port = unbox(publish(server_side.spawn(make_sort_behavior),
+                            0, local_host));
   // client side
-  CAF_EXP_THROW(sorter, remote_actor(client_side, local_host, port));
+  auto sorter = unbox(remote_actor(client_side, local_host, port));
   client_side.spawn(make_sort_requester_behavior, sorter);
 }
 
-CAF_TEST(remote_link) {
+CAF_TEST_DISABLED(remote_link) {
   // server side
-  CAF_EXP_THROW(port,
-                publish(server_side.spawn(fragile_mirror), 0, local_host));
+  auto port = unbox(publish(server_side.spawn(fragile_mirror), 0, local_host));
   // client side
-  CAF_EXP_THROW(mirror, remote_actor(client_side, local_host, port));
+  auto mirror = unbox(remote_actor(client_side, local_host, port));
   auto linker = client_side.spawn(linking_actor, mirror);
   scoped_actor self{client_side};
   self->wait_for(linker);

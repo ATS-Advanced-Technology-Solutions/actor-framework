@@ -16,14 +16,12 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_CHECK_TYPED_INPUT_HPP
-#define CAF_CHECK_TYPED_INPUT_HPP
+#pragma once
 
 #include "caf/fwd.hpp"
 #include "caf/replies_to.hpp"
 
 #include "caf/detail/type_list.hpp"
-#include "caf/detail/typed_actor_util.hpp"
 
 namespace caf {
 
@@ -65,4 +63,3 @@ struct is_void_response<none_t> : std::true_type {};
 
 } // namespace caf
 
-#endif // CAF_CHECK_TYPED_INPUT_HPP

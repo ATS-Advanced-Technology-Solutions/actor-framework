@@ -25,37 +25,168 @@
 #include <fstream>
 #include <algorithm>
 #include <condition_variable>
+#include <unordered_map>
 
 #include "caf/config.hpp"
 
-#include "caf/term.hpp"
-#include "caf/locks.hpp"
-#include "caf/timestamp.hpp"
 #include "caf/actor_proxy.hpp"
 #include "caf/actor_system.hpp"
-#include "caf/string_algorithms.hpp"
 #include "caf/actor_system_config.hpp"
-
+#include "caf/defaults.hpp"
 #include "caf/detail/get_process_id.hpp"
 #include "caf/detail/pretty_type_name.hpp"
-#include "caf/detail/single_reader_queue.hpp"
+#include "caf/detail/set_thread_name.hpp"
+#include "caf/intrusive/task_result.hpp"
+#include "caf/local_actor.hpp"
+#include "caf/locks.hpp"
+#include "caf/string_algorithms.hpp"
+#include "caf/term.hpp"
+#include "caf/timestamp.hpp"
 
 namespace caf {
 
 namespace {
 
-constexpr const char* log_level_name[] = {
+constexpr string_view log_level_name[] = {
+  "QUIET",
+  "",
+  "",
   "ERROR",
+  "",
+  "",
   "WARN",
+  "",
+  "",
   "INFO",
+  "",
+  "",
   "DEBUG",
-  "TRACE"
+  "",
+  "",
+  "TRACE",
 };
 
-#ifdef CAF_LOG_LEVEL
+constexpr string_view fun_prefixes[] = {
+  "virtual ",
+  "static ",
+  "const ",
+  "signed ",
+  "unsigned ",
+};
 
-static_assert(CAF_LOG_LEVEL >= 0 && CAF_LOG_LEVEL <= 4,
-              "assertion: 0 <= CAF_LOG_LEVEL <= 4");
+// Various spellings of the anonymous namespace as reported by CAF_PRETTY_FUN.
+constexpr string_view anon_ns[] = {
+  "(anonymous namespace)", // Clang
+  "{anonymous}", // GCC
+  "`anonymous-namespace'", // MSVC
+};
+
+/// Converts a verbosity atom to its integer counterpart.
+unsigned to_level_int(atom_value x) {
+  switch (atom_uint(to_lowercase(x))) {
+    default:
+      return CAF_LOG_LEVEL_QUIET;
+    case atom_uint("quiet"):
+      return CAF_LOG_LEVEL_QUIET;
+    case atom_uint("error"):
+      return CAF_LOG_LEVEL_ERROR;
+    case atom_uint("warning"):
+      return CAF_LOG_LEVEL_WARNING;
+    case atom_uint("info"):
+      return CAF_LOG_LEVEL_INFO;
+    case atom_uint("debug"):
+      return CAF_LOG_LEVEL_DEBUG;
+    case atom_uint("trace"):
+      return CAF_LOG_LEVEL_TRACE;
+  }
+}
+
+// Reduces symbol by printing all prefixes to `out` and returning the
+// remainder. For example, "ns::foo::bar" prints "ns.foo" to `out` and returns
+// "bar".
+string_view reduce_symbol(std::ostream& out, string_view symbol) {
+  auto skip = [&](string_view str) {
+    if (starts_with(symbol, str))
+      symbol.remove_prefix(str.size());
+  };
+  // MSVC adds `struct` to symbol names. For example:
+  // void __cdecl `anonymous-namespace'::foo::tpl<struct T>::run(void)
+  //                                              ^~~~~~
+  skip("struct ");
+  string_view last = "";
+  bool printed = false;
+  // Prints the content of `last` and then replaces it with `y`.
+  auto set_last = [&](string_view y) {
+    if (!last.empty()) {
+      if (printed)
+        out << ".";
+      else
+        printed = true;
+      for (auto ch : last)
+        if (ch == ' ')
+          out << "%20";
+        else
+          out << ch;
+    }
+    last = y;
+  };
+  size_t pos = 0;
+  auto advance = [&](size_t n) {
+    set_last(symbol.substr(0, pos));
+    symbol.remove_prefix(pos + n);
+    pos = 0;
+  };
+  auto flush = [&] {
+    advance(1);
+    // Some compilers put a whitespace after nested templates that we wish to
+    // ignore here, e.g.,
+    // foo::tpl<foo::tpl<int> >::fun(int)
+    //                       ^
+    if (last != " ")
+      set_last("");
+  };
+  while (pos < symbol.size()) {
+    switch (symbol[pos]) {
+      // A colon can only appear as scope separator, i.e., "::".
+      case ':':
+        advance(2);
+        break;
+      // These characters are invalid in function names, unless they indicate
+      // an anonymous namespace or the beginning of the argument list.
+      case '`':
+      case '{':
+      case '(': {
+        auto pred = [&](string_view x) { return starts_with(symbol, x); };
+        auto i = std::find_if(std::begin(anon_ns), std::end(anon_ns), pred);
+        if (i != std::end(anon_ns)) {
+          set_last("$");
+          // The anonymous namespace is always followed by "::".
+          symbol.remove_prefix(i->size() + 2);
+          pos = 0;
+          break;
+        }
+        // We reached the end of the function name. Print "GLOBAL" if we didn't
+        // print anything yet as "global namespace".
+        set_last("");
+        if (!printed)
+          out << "GLOBAL";
+        return symbol;
+      }
+      case '<':
+        flush();
+        out << '<';
+        symbol = reduce_symbol(out, symbol);
+        break;
+      case '>':
+        flush();
+        out << '>';
+        return symbol;
+      default:
+        ++pos;
+    }
+  }
+  return symbol;
+}
 
 #if defined(CAF_NO_THREAD_LOCAL)
 
@@ -99,37 +230,64 @@ inline logger* get_current_logger() {
 
 #endif // CAF_NO_THREAD_LOCAL
 
-#else // CAF_LOG_LEVEL
-
-inline void set_current_logger(logger*) {
-  // nop
-}
-
-inline logger* get_current_logger() {
-  return nullptr;
-}
-#endif // CAF_LOG_LEVEL
-
 } // namespace <anonymous>
 
-logger::line_builder::line_builder() : behind_arg_(false) {
+logger::config::config()
+    : verbosity(CAF_LOG_LEVEL),
+      file_verbosity(CAF_LOG_LEVEL),
+      console_verbosity(CAF_LOG_LEVEL),
+      inline_output(false),
+      console_coloring(false) {
   // nop
+}
+
+logger::event::event(unsigned lvl, unsigned line, atom_value cat,
+                     string_view full_fun, string_view fun, string_view fn,
+                     std::string msg, std::thread::id t, actor_id a,
+                     timestamp ts)
+    : level(lvl),
+      line_number(line),
+      category_name(cat),
+      pretty_fun(full_fun),
+      simple_fun(fun),
+      file_name(fn),
+      message(std::move(msg)),
+      tid(std::move(t)),
+      aid(a),
+      tstamp(ts) {
+  // nop
+}
+
+logger::line_builder::line_builder() {
+  // nop
+}
+
+logger::line_builder& logger::line_builder::
+operator<<(const local_actor* self) {
+  return *this << self->name();
 }
 
 logger::line_builder& logger::line_builder::operator<<(const std::string& str) {
-  if (!str_.empty())
+  return *this << str.c_str();
+}
+
+logger::line_builder& logger::line_builder::operator<<(string_view str) {
+  if (!str_.empty() && str_.back() != ' ')
     str_ += " ";
-  str_ += str;
-  behind_arg_ = false;
+  str_.insert(str_.end(), str.begin(), str.end());
   return *this;
 }
 
 logger::line_builder& logger::line_builder::operator<<(const char* str) {
-  if (!str_.empty())
+  if (!str_.empty() && str_.back() != ' ')
     str_ += " ";
   str_ += str;
-  behind_arg_ = false;
   return *this;
+}
+
+logger::line_builder& logger::line_builder::operator<<(char x) {
+  const char buf[] = {x, '\0'};
+  return *this << buf;
 }
 
 std::string logger::line_builder::get() const {
@@ -162,14 +320,11 @@ actor_id logger::thread_local_aid(actor_id aid) {
   return 0; // was empty before
 }
 
-void logger::log(event* x) {
-  CAF_ASSERT(x->level >= 0 && x->level <= 4);
-  if (!inline_output_) {
-    queue_.synchronized_enqueue(queue_mtx_, queue_cv_,x);
-  } else {
-    std::unique_ptr<event> ptr{x};
-    handle_event(*ptr);
-  }
+void logger::log(event&& x) {
+  if (cfg_.inline_output)
+    handle_event(x);
+  else
+    queue_.push_back(std::move(x));
 }
 
 void logger::set_current_actor_system(actor_system* x) {
@@ -183,18 +338,15 @@ logger* logger::current_logger() {
   return get_current_logger();
 }
 
-bool logger::accepts(int level, const char* cname_begin,
-                     const char* cname_end) {
-  CAF_ASSERT(cname_begin != nullptr && cname_end != nullptr);
-  CAF_ASSERT(level >= 0 && level <= 4);
-  if (level > level_)
+bool logger::accepts(unsigned level, atom_value cname) {
+  if (level > cfg_.verbosity)
     return false;
-  auto& filter = system_.config().logger_component_filter;
-  if (!filter.empty()) {
-    auto it = std::search(filter.begin(), filter.end(), cname_begin, cname_end);
-    return it != filter.end();
-  }
-  return true;
+  return !std::any_of(component_blacklist.begin(), component_blacklist.end(),
+                      [=](atom_value name) { return name == cname; });
+}
+
+logger::logger(actor_system& sys) : system_(sys), t0_(make_timestamp()) {
+  // nop
 }
 
 logger::~logger() {
@@ -205,96 +357,107 @@ logger::~logger() {
   system_.logger_dtor_cv_.notify_one();
 }
 
-logger::logger(actor_system& sys) : system_(sys), inline_output_(false) {
-  // nop
-}
-
 void logger::init(actor_system_config& cfg) {
   CAF_IGNORE_UNUSED(cfg);
-#if defined(CAF_LOG_LEVEL)
-  inline_output_ = cfg.logger_inline_output;
+  namespace lg = defaults::logger;
+  using atom_list = std::vector<atom_value>;
+  auto blacklist = get_if<atom_list>(&cfg, "logger.component-blacklist");
+  if (blacklist)
+    component_blacklist = move_if_optional(blacklist);
   // Parse the configured log level.
-  switch (static_cast<uint64_t>(cfg.logger_verbosity)) {
-    case atom_uint("quiet"):
-    case atom_uint("QUIET"):
-      level_ = CAF_LOG_LEVEL_QUIET;
-      break;
-    case atom_uint("error"):
-    case atom_uint("ERROR"):
-      level_ = CAF_LOG_LEVEL_ERROR;
-      break;
-    case atom_uint("warning"):
-    case atom_uint("WARNING"):
-      level_ = CAF_LOG_LEVEL_WARNING;
-      break;
-    case atom_uint("info"):
-    case atom_uint("INFO"):
-      level_ = CAF_LOG_LEVEL_INFO;
-      break;
-    case atom_uint("debug"):
-    case atom_uint("DEBUG"):
-      level_ = CAF_LOG_LEVEL_DEBUG;
-      break;
-    case atom_uint("trace"):
-    case atom_uint("TRACE"):
-      level_ = CAF_LOG_LEVEL_TRACE;
-      break;
-    default: {
-      level_ = CAF_LOG_LEVEL;
-    }
-  }
+  auto verbosity = get_if<atom_value>(&cfg, "logger.verbosity");
+  auto file_verbosity = verbosity ? *verbosity : lg::file_verbosity;
+  auto console_verbosity = verbosity ? *verbosity : lg::console_verbosity;
+  file_verbosity = get_or(cfg, "logger.file-verbosity", file_verbosity);
+  console_verbosity =
+    get_or(cfg, "logger.console-verbosity", console_verbosity);
+  cfg_.file_verbosity = to_level_int(file_verbosity);
+  cfg_.console_verbosity = to_level_int(console_verbosity);
+  cfg_.verbosity = std::max(cfg_.file_verbosity, cfg_.console_verbosity);
   // Parse the format string.
-  file_format_ = parse_format(cfg.logger_file_format.c_str());
-  console_format_ = parse_format(cfg.logger_console_format.c_str());
-#endif
+  file_format_ =
+    parse_format(get_or(cfg, "logger.file-format", lg::file_format));
+  console_format_ = parse_format(get_or(cfg,"logger.console-format",
+                                        lg::console_format));
+  // Set flags.
+  if (get_or(cfg, "logger.inline-output", false))
+    cfg_.inline_output = true;
+  auto con_atm = get_or(cfg, "logger.console", lg::console);
+  if (to_lowercase(con_atm) == atom("colored")) {
+    cfg_.console_coloring = true;
+  } else if (to_lowercase(con_atm) != atom("uncolored")) {
+    // Disable console output if neither 'colored' nor 'uncolored' are present.
+    cfg_.console_verbosity = CAF_LOG_LEVEL_QUIET;
+  }
 }
 
-void logger::render_fun_prefix(std::ostream& out, const char* pretty_fun) {
-  auto first = pretty_fun;
-  // set end to beginning of arguments
-  const char* last = strchr(pretty_fun, '(');
-  if (last == nullptr)
-    return;
-  auto strsize = static_cast<size_t>(last - first);
-  auto jump_to_next_whitespace = [&] {
-    // leave `first` unchanged if no whitespaces is present,
-    // e.g., in constructor signatures
-    auto tmp = std::find(first, last, ' ');
-    if (tmp != last)
-      first = tmp + 1;
+bool logger::open_file() {
+  if (file_verbosity() == CAF_LOG_LEVEL_QUIET || file_name_.empty())
+    return false;
+  file_.open(file_name_, std::ios::out | std::ios::app);
+  if (!file_) {
+    std::cerr << "unable to open log file " << file_name_ << std::endl;
+    return false;
+  }
+  return true;
+}
+
+void logger::render_fun_prefix(std::ostream& out, const event& x) {
+  // Extract the prefix of a function name. For example:
+  // virtual std::vector<int> my::namespace::foo(int);
+  //                          ^~~~~~~~~~~~~
+  // Here, we output Java-style "my.namespace" to `out`.
+  auto reduced = x.pretty_fun;
+  // Skip all prefixes that can preceed the return type.
+  auto skip = [&](string_view str) {
+    if (starts_with(reduced, str)) {
+      reduced.remove_prefix(str.size());
+      return true;
+    }
+    return false;
   };
-  // skip "virtual" prefix if present
-  if (strncmp(pretty_fun, "virtual ", std::min<size_t>(strsize, 8)) == 0)
-    jump_to_next_whitespace();
-  // skip return type
-  jump_to_next_whitespace();
-  if (first == last)
-    return;
-  const char sep[] = "::"; // separator for namespaces and classes
-  auto sep_first = std::begin(sep);
-  auto sep_last = sep_first + 2; // using end() includes \0
-  auto colons = first;
-  decltype(colons) nextcs;
-  while ((nextcs = std::search(colons + 1, last, sep_first, sep_last)) != last)
-    colons = nextcs;
-  std::string result;
-  result.assign(first, colons);
-  detail::prettify_type_name(result);
-  out << result;
+  // Remove any type of the return type.
+  while (std::any_of(std::begin(fun_prefixes), std::end(fun_prefixes), skip))
+    ; // Repeat.
+  // Skip the return type.
+  auto skip_return_type = [&] {
+    size_t template_nesting = 0;
+    size_t pos = 0;
+    for (size_t pos = 0; pos < reduced.size(); ++pos) {
+      switch (reduced[pos]) {
+        case ' ':
+          if (template_nesting == 0) {
+            // Skip any pointers and references. We need to loop, because each
+            // pointer/reference can be const-qualified.
+            do {
+              pos = reduced.find_first_not_of(" *&", pos);
+              reduced.remove_prefix(pos);
+              pos = 0;
+            } while (skip("const"));
+            return;
+          }
+          break;
+        case '<':
+          ++template_nesting;
+          break;
+        case '>':
+          --template_nesting;
+          break;
+        default:
+          break;
+      }
+    }
+    reduced.remove_prefix(pos);
+  };
+  skip_return_type();
+  // MSVC puts '__cdecl' between the return type and the function name.
+  skip("__cdecl ");
+  // We reached the function name itself and can recursively print the prefix.
+  reduce_symbol(out, reduced);
 }
 
-void logger::render_fun_name(std::ostream& out, const char* pretty_fun) {
-  // Find the end of the function name by looking for the opening parenthesis
-  // trailing it.
-  CAF_ASSERT(pretty_fun != nullptr);
-  const char* e = strchr(pretty_fun, '(');
-  if (e == nullptr)
-    return;
-  /// Now look for the beginning of the function name.
-  using rev_iter = std::reverse_iterator<const char*>;
-  auto b = std::find_if(rev_iter(e), rev_iter(pretty_fun),
-                        [](char x) { return x == ':' || x == ' '; });
-  out.write(b.base(), e - b.base());
+void logger::render_fun_name(std::ostream& out, const event& e) {
+  out << e.simple_fun;
 }
 
 void logger::render_time_diff(std::ostream& out, timestamp t0, timestamp tn) {
@@ -302,43 +465,37 @@ void logger::render_time_diff(std::ostream& out, timestamp t0, timestamp tn) {
 }
 
 void logger::render_date(std::ostream& out, timestamp x) {
-  auto y = std::chrono::time_point_cast<timestamp::clock::duration>(x);
-  auto z = timestamp::clock::to_time_t(y);
-  // strftime workaround: std::put_time not available on GCC 4.8
-  // out << std::put_time(std::localtime(&z), "%F %T");
-  char buf[50];
-  if (strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&z)))
-    out << buf;
+  out << deep_to_string(x);
 }
 
 void logger::render(std::ostream& out, const line_format& lf,
                     const event& x) const {
   for (auto& f : lf)
     switch (f.kind) {
-      case category_field: out << x.category_name; break;
-      case class_name_field: render_fun_prefix(out, x.pretty_fun); break;
+      case category_field: out << to_string(x.category_name); break;
+      case class_name_field: render_fun_prefix(out, x); break;
       case date_field: render_date(out, x.tstamp); break;
       case file_field: out << x.file_name; break;
       case line_field: out << x.line_number; break;
       case message_field: out << x.message; break;
-      case method_field: render_fun_name(out, x.pretty_fun); break;
+      case method_field: render_fun_name(out, x); break;
       case newline_field: out << std::endl; break;
       case priority_field: out << log_level_name[x.level]; break;
       case runtime_field: render_time_diff(out, t0_, x.tstamp); break;
       case thread_field: out << x.tid; break;
       case actor_field: out << "actor" << x.aid; break;
       case percent_sign_field: out << '%'; break;
-      case plain_text_field: out.write(f.first, f.last - f.first); break;
+      case plain_text_field: out << f.text; break;
       default: ; // nop
     }
 }
 
-logger::line_format logger::parse_format(const char* format_str) {
+logger::line_format logger::parse_format(const std::string& format_str) {
   std::vector<field> res;
-  auto i = format_str;
-  auto plain_text_first = i;
+  auto plain_text_first = format_str.begin();
   bool read_percent_sign = false;
-  for (; *i != '\0'; ++i) {
+  auto i = format_str.begin();
+  for (; i != format_str.end(); ++i) {
     if (read_percent_sign) {
       field_type ft;
       switch (*i) {
@@ -361,48 +518,64 @@ logger::line_format logger::parse_format(const char* format_str) {
                     << *i << std::endl;
       }
       if (ft != invalid_field)
-        res.emplace_back(field{ft, nullptr, nullptr});
+        res.emplace_back(field{ft, std::string{}});
       plain_text_first = i + 1;
       read_percent_sign = false;
     } else {
       if (*i == '%') {
         if (plain_text_first != i)
-          res.emplace_back(field{plain_text_field, plain_text_first, i});
+          res.emplace_back(field{plain_text_field,
+                                 std::string{plain_text_first, i}});
         read_percent_sign = true;
       }
     }
   }
   if (plain_text_first != i)
-    res.emplace_back(field{plain_text_field, plain_text_first, i});
+    res.emplace_back(field{plain_text_field, std::string{plain_text_first, i}});
   return res;
 }
 
-void logger::run() {
-#if defined(CAF_LOG_LEVEL)
-  log_first_line();
-  // receive log entries from other threads and actors
-  std::unique_ptr<event> ptr;
-  for (;;) {
-    // make sure we have data to read
-    queue_.synchronized_await(queue_mtx_, queue_cv_);
-    // read & process event
-    ptr.reset(queue_.try_pop());
-    CAF_ASSERT(ptr != nullptr);
-    // empty message means: shut down
-    if (ptr->message.empty())
-      break;
-    handle_event(*ptr);
-  }
-  log_last_line();
-#endif
+string_view logger::skip_path(string_view path) {
+  auto find_slash = [&] { return path.find('/'); };
+  for (auto p = find_slash(); p != string_view::npos; p = find_slash())
+    path.remove_prefix(p + 1);
+  return path;
 }
 
-void logger::handle_event(event& x) {
-  if (file_)
+void logger::run() {
+  // Bail out without printing anything if the first event we receive is the
+  // shutdown (empty) event.
+  queue_.wait_nonempty();
+  if (queue_.front().message.empty())
+    return;
+  if (!open_file() && console_verbosity() == CAF_LOG_LEVEL_QUIET)
+    return;
+  log_first_line();
+  // Loop until receiving an empty message.
+  for (;;) {
+    // Handle current head of the queue.
+    auto& e = queue_.front();
+    if (e.message.empty()) {
+      log_last_line();
+      return;
+    }
+    handle_event(e);
+    // Prepare next iteration.
+    queue_.pop_front();
+    queue_.wait_nonempty();
+  }
+}
+
+void logger::handle_file_event(const event& x) {
+  // Print to file if available.
+  if (file_ && x.level <= file_verbosity())
     render(file_, file_format_, x);
-  if (system_.config().logger_console == atom("UNCOLORED")) {
-    render(std::clog, console_format_, x);
-  } else if  (system_.config().logger_console == atom("COLORED")) {
+}
+
+void logger::handle_console_event(const event& x) {
+  if (x.level > console_verbosity())
+    return;
+  if (cfg_.console_coloring) {
     switch (x.level) {
       default:
         break;
@@ -424,106 +597,98 @@ void logger::handle_event(event& x) {
     }
     render(std::clog, console_format_, x);
     std::clog << term::reset_endl;
+  } else {
+    render(std::clog, console_format_, x);
+    std::clog << std::endl;
   }
+}
+
+void logger::handle_event(const event& x) {
+  handle_file_event(x);
+  handle_console_event(x);
 }
 
 void logger::log_first_line() {
-  std::string msg = "level = ";
-  msg += to_string(system_.config().logger_verbosity);
-  msg += ", node = ";
-  msg += to_string(system_.node());
-  event tmp{nullptr,
-            nullptr,
-            CAF_LOG_LEVEL_INFO,
-            CAF_LOG_COMPONENT,
-            CAF_PRETTY_FUN,
-            __FILE__,
-            __LINE__,
-            std::move(msg),
-            std::this_thread::get_id(),
-            0,
-            make_timestamp()};
-  handle_event(tmp);
+  auto e = CAF_LOG_MAKE_EVENT(0, CAF_LOG_COMPONENT, CAF_LOG_LEVEL_DEBUG, "");
+  auto make_message = [&](string_view config_name, atom_value default_value) {
+    std::string msg = "level = ";
+    msg += to_string(get_or(system_.config(), config_name, default_value));
+    msg += ", node = ";
+    msg += to_string(system_.node());
+    msg += ", component-blacklist = ";
+    msg += deep_to_string(component_blacklist);
+    return msg;
+  };
+  namespace lg = defaults::logger;
+  e.message = make_message("logger.file-verbosity", lg::file_verbosity);
+  handle_file_event(e);
+  e.message = make_message("logger.console-verbosity", lg::console_verbosity);
+  handle_console_event(e);
 }
 
 void logger::log_last_line() {
-  event tmp{nullptr,
-            nullptr,
-            CAF_LOG_LEVEL_INFO,
-            CAF_LOG_COMPONENT,
-            CAF_PRETTY_FUN,
-            __FILE__,
-            __LINE__,
-            "EOF",
-            std::this_thread::get_id(),
-            0,
-            make_timestamp()};
-  handle_event(tmp);
+  auto e = CAF_LOG_MAKE_EVENT(0, CAF_LOG_COMPONENT, CAF_LOG_LEVEL_DEBUG, "");
+  handle_event(e);
 }
 
 void logger::start() {
-#if defined(CAF_LOG_LEVEL)
   parent_thread_ = std::this_thread::get_id();
-  auto verbosity = system_.config().logger_verbosity;
-  if (verbosity == atom("quiet") || verbosity == atom("QUIET"))
+  if (verbosity() == CAF_LOG_LEVEL_QUIET)
     return;
-  t0_ = make_timestamp();
-  if (system_.config().logger_file_name.empty()) {
+  file_name_ = get_or(system_.config(), "logger.file-name",
+                  defaults::logger::file_name);
+  if (file_name_.empty()) {
     // No need to continue if console and log file are disabled.
-    if (!(system_.config().logger_console == atom("UNCOLORED")
-          || system_.config().logger_console == atom("COLORED")))
+    if (console_verbosity() == CAF_LOG_LEVEL_QUIET)
       return;
   } else {
-    auto f = system_.config().logger_file_name;
     // Replace placeholders.
     const char pid[] = "[PID]";
-    auto i = std::search(f.begin(), f.end(), std::begin(pid),
+    auto i = std::search(file_name_.begin(), file_name_.end(), std::begin(pid),
                          std::end(pid) - 1);
-    if (i != f.end()) {
+    if (i != file_name_.end()) {
       auto id = std::to_string(detail::get_process_id());
-      f.replace(i, i + sizeof(pid) - 1, id);
+      file_name_.replace(i, i + sizeof(pid) - 1, id);
     }
     const char ts[] = "[TIMESTAMP]";
-    i = std::search(f.begin(), f.end(), std::begin(ts), std::end(ts) - 1);
-    if (i != f.end()) {
+    i = std::search(file_name_.begin(), file_name_.end(), std::begin(ts),
+                    std::end(ts) - 1);
+    if (i != file_name_.end()) {
       auto t0_str = timestamp_to_string(t0_);
-      f.replace(i, i + sizeof(ts) - 1, t0_str);
+      file_name_.replace(i, i + sizeof(ts) - 1, t0_str);
     }
     const char node[] = "[NODE]";
-    i = std::search(f.begin(), f.end(), std::begin(node), std::end(node) - 1);
-    if (i != f.end()) {
+    i = std::search(file_name_.begin(), file_name_.end(), std::begin(node),
+                    std::end(node) - 1);
+    if (i != file_name_.end()) {
       auto nid = to_string(system_.node());
-      f.replace(i, i + sizeof(node) - 1, nid);
-    }
-    file_.open(f, std::ios::out | std::ios::app);
-    if (!file_) {
-      std::cerr << "unable to open log file " << f << std::endl;
-      return;
+      file_name_.replace(i, i + sizeof(node) - 1, nid);
     }
   }
-  if (inline_output_)
+  if (cfg_.inline_output) {
+    // Open file immediately for inline output.
+    open_file();
     log_first_line();
-  else
+  } else {
     thread_ = std::thread{[this] {
+      detail::set_thread_name("caf.logger");
       this->system_.thread_started();
       this->run();
       this->system_.thread_terminates();
     }};
-#endif
+  }
 }
 
 void logger::stop() {
-#if defined(CAF_LOG_LEVEL)
-  if (inline_output_) {
+  if (cfg_.inline_output) {
     log_last_line();
     return;
   }
   if (!thread_.joinable())
     return;
-  // an empty string means: shut down
-  queue_.synchronized_enqueue(queue_mtx_, queue_cv_, new event);
+  // A default-constructed event causes the logger to shutdown.
+  queue_.push_back(event{});
   thread_.join();
-#endif
 }
 
 std::string to_string(logger::field_type x) {
@@ -537,9 +702,9 @@ std::string to_string(logger::field_type x) {
 std::string to_string(const logger::field& x) {
   std::string result = "field{";
   result += to_string(x.kind);
-  if (x.first != nullptr) {
+  if (x.kind == logger::plain_text_field) {
     result += ", \"";
-    result.insert(result.end(), x.first, x.last);
+    result += x.text;
     result += '\"';
   }
   result += "}";
@@ -547,13 +712,7 @@ std::string to_string(const logger::field& x) {
 }
 
 bool operator==(const logger::field& x, const logger::field& y) {
-  if (x.kind == y.kind) {
-    if (x.kind == logger::plain_text_field)
-      return std::distance(x.first, x.last) == std::distance(y.first, y.last)
-             && std::equal(x.first, x.last, y.first);
-    return true;
-  }
-  return false;
+  return x.kind == y.kind && x.text == y.text;
 }
 
 } // namespace caf

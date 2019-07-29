@@ -122,12 +122,25 @@ void actor_pool::enqueue(mailbox_element_ptr what, execution_unit* eu) {
   policy_(home_system(), guard, workers_, what, eu);
 }
 
-actor_pool::actor_pool(actor_config& cfg) : monitorable_actor(cfg) {
+actor_pool::actor_pool(actor_config& cfg)
+    : monitorable_actor(cfg),
+      planned_reason_(exit_reason::normal) {
   register_at_system();
 }
 
-void actor_pool::on_cleanup() {
-  // nop
+void actor_pool::on_destroy() {
+  CAF_PUSH_AID_FROM_PTR(this);
+  if (!getf(is_cleaned_up_flag)) {
+    cleanup(exit_reason::unreachable, nullptr);
+    monitorable_actor::on_destroy();
+    unregister_from_system();
+  }
+}
+
+void actor_pool::on_cleanup(const error& reason) {
+  CAF_PUSH_AID_FROM_PTR(this);
+  CAF_IGNORE_UNUSED(reason);
+  CAF_LOG_TERMINATE_EVENT(this, reason);
 }
 
 bool actor_pool::filter(upgrade_lock<detail::shared_spinlock>& guard,
@@ -208,9 +221,9 @@ bool actor_pool::filter(upgrade_lock<detail::shared_spinlock>& guard,
   }
   if (workers_.empty()) {
     guard.unlock();
-    if (sender && mid.valid()) {
-      // tell client we have ignored this sync message by sending
-      // and empty message back
+    if (mid.is_request() && sender != nullptr) {
+      // Tell client we have ignored this request message by sending and empty
+      // message back.
       sender->enqueue(nullptr, mid.response_id(), message{}, eu);
     }
     return true;

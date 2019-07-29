@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_SCHEDULER_ABSTRACT_COORDINATOR_HPP
-#define CAF_SCHEDULER_ABSTRACT_COORDINATOR_HPP
+#pragma once
 
 #include <chrono>
 #include <atomic>
@@ -66,6 +65,8 @@ public:
     return system_;
   }
 
+  const actor_system_config& config() const;
+
   inline size_t max_throughput() const {
     return max_throughput_;
   }
@@ -112,4 +113,3 @@ protected:
 } // namespace scheduler
 } // namespace caf
 
-#endif // CAF_SCHEDULER_ABSTRACT_COORDINATOR_HPP

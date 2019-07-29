@@ -32,17 +32,18 @@ event_based_actor::~event_based_actor() {
 }
 
 void event_based_actor::initialize() {
-  CAF_LOG_TRACE("subtype =" << detail::pretty_type_name(typeid(*this)).c_str());
+  CAF_LOG_TRACE(CAF_ARG2("subtype",
+                         detail::pretty_type_name(typeid(*this)).c_str()));
+  extended_base::initialize();
   setf(is_initialized_flag);
   auto bhvr = make_behavior();
   CAF_LOG_DEBUG_IF(!bhvr, "make_behavior() did not return a behavior:"
-                           << CAF_ARG(has_behavior()));
+                           << CAF_ARG2("alive", alive()));
   if (bhvr) {
     // make_behavior() did return a behavior instead of using become()
     CAF_LOG_DEBUG("make_behavior() did return a valid behavior");
     become(std::move(bhvr));
   }
-  extended_base::initialize();
 }
 
 behavior event_based_actor::make_behavior() {

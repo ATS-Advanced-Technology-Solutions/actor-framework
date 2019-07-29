@@ -16,22 +16,16 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DESERIALIZER_HPP
-#define CAF_DESERIALIZER_HPP
+#pragma once
 
 #include <string>
 #include <cstddef>
 #include <utility>
 #include <type_traits>
 
-#include "caf/config.hpp"
-
-#ifndef CAF_NO_EXCEPTIONS
-#include <exception>
-#endif // CAF_NO_EXCEPTIONS
-
-#include "caf/fwd.hpp"
 #include "caf/data_processor.hpp"
+#include "caf/fwd.hpp"
+#include "caf/raise_error.hpp"
 
 namespace caf {
 
@@ -55,8 +49,6 @@ public:
   explicit deserializer(execution_unit* x = nullptr);
 };
 
-#ifndef CAF_NO_EXCEPTIONS
-
 template <class T>
 typename std::enable_if<
   std::is_same<
@@ -67,7 +59,7 @@ typename std::enable_if<
 operator&(deserializer& source, T& x) {
   auto e = source.apply(x);
   if (e)
-    CAF_RAISE_ERROR(to_string(e));
+    CAF_RAISE_ERROR("error during serialization (using operator&)");
 }
 
 template <class T>
@@ -83,8 +75,5 @@ operator>>(deserializer& source, T& x) {
   return source;
 }
 
-#endif // CAF_NO_EXCEPTIONS
-
 } // namespace caf
 
-#endif // CAF_DESERIALIZER_HPP

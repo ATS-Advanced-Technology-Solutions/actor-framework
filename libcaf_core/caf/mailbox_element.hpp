@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_MAILBOX_ELEMENT_HPP
-#define CAF_MAILBOX_ELEMENT_HPP
+#pragma once
 
 #include <cstddef>
 
@@ -31,6 +30,8 @@
 #include "caf/type_erased_tuple.hpp"
 #include "caf/actor_control_block.hpp"
 
+#include "caf/intrusive/singly_linked.hpp"
+
 #include "caf/meta/type_name.hpp"
 #include "caf/meta/omittable_if_empty.hpp"
 
@@ -40,18 +41,11 @@
 
 namespace caf {
 
-class mailbox_element : public memory_managed, public message_view {
+class mailbox_element : public intrusive::singly_linked<mailbox_element>,
+                        public memory_managed,
+                        public message_view {
 public:
   using forwarding_stack = std::vector<strong_actor_ptr>;
-
-  /// Intrusive pointer to the next mailbox element.
-  mailbox_element* next;
-
-  /// Intrusive pointer to the previous mailbox element.
-  mailbox_element* prev;
-
-  /// Avoids multi-processing in blocking actors via flagging.
-  bool marked;
 
   /// Source of this message and receiver of the final response.
   strong_actor_ptr sender;
@@ -70,25 +64,37 @@ public:
 
   ~mailbox_element() override;
 
-  type_erased_tuple& content() override;
-
-  message move_content_to_message() override;
-
-  message copy_content_to_message() const override;
-
-  const type_erased_tuple& content() const;
+  inline bool is_high_priority() const {
+    return mid.category() == message_id::urgent_message_category;
+  }
 
   mailbox_element(mailbox_element&&) = delete;
   mailbox_element(const mailbox_element&) = delete;
   mailbox_element& operator=(mailbox_element&&) = delete;
   mailbox_element& operator=(const mailbox_element&) = delete;
+};
 
-  inline bool is_high_priority() const {
-    return mid.is_high_priority();
+/// Corrects the message ID for down- and upstream messages to make sure the
+/// category for a `mailbox_element` matches its content.
+template <class...>
+struct mailbox_category_corrector {
+  static constexpr message_id apply(message_id x) noexcept {
+    return x;
   }
+};
 
-protected:
-  empty_type_erased_tuple dummy_;
+template <>
+struct mailbox_category_corrector<downstream_msg> {
+  static constexpr message_id apply(message_id x) noexcept {
+    return x.with_category(message_id::downstream_message_category);
+  }
+};
+
+template <>
+struct mailbox_category_corrector<upstream_msg> {
+  static constexpr message_id apply(message_id x) noexcept {
+    return x.with_category(message_id::upstream_message_category);
+  }
 };
 
 /// @relates mailbox_element
@@ -100,19 +106,26 @@ typename Inspector::result_type inspect(Inspector& f, mailbox_element& x) {
 
 /// Encapsulates arbitrary data in a message element.
 template <class... Ts>
-class mailbox_element_vals
+class mailbox_element_vals final
     : public mailbox_element,
       public detail::tuple_vals_impl<type_erased_tuple, Ts...> {
 public:
   template <class... Us>
   mailbox_element_vals(strong_actor_ptr&& x0, message_id x1,
                        forwarding_stack&& x2, Us&&... xs)
-      : mailbox_element(std::move(x0), x1, std::move(x2)),
-        detail::tuple_vals_impl<type_erased_tuple, Ts...>(std::forward<Us>(xs)...) {
+      : mailbox_element(std::move(x0),
+                        mailbox_category_corrector<Ts...>::apply(x1),
+                        std::move(x2)),
+        detail::tuple_vals_impl<type_erased_tuple, Ts...>(
+          std::forward<Us>(xs)...) {
     // nop
   }
 
   type_erased_tuple& content() override {
+    return *this;
+  }
+
+  const type_erased_tuple& content() const override {
     return *this;
   }
 
@@ -135,17 +148,24 @@ public:
 
 /// Provides a view for treating arbitrary data as message element.
 template <class... Ts>
-class mailbox_element_view : public mailbox_element,
-                             public detail::type_erased_tuple_view<Ts...> {
+class mailbox_element_view final
+    : public mailbox_element,
+      public detail::type_erased_tuple_view<Ts...> {
 public:
   mailbox_element_view(strong_actor_ptr&& x0, message_id x1,
                        forwarding_stack&& x2, Ts&... xs)
-    : mailbox_element(std::move(x0), x1, std::move(x2)),
-      detail::type_erased_tuple_view<Ts...>(xs...) {
+      : mailbox_element(std::move(x0),
+                        mailbox_category_corrector<Ts...>::apply(x1),
+                        std::move(x2)),
+        detail::type_erased_tuple_view<Ts...>(xs...) {
     // nop
   }
 
   type_erased_tuple& content() override {
+    return *this;
+  }
+
+  const type_erased_tuple& content() const override {
     return *this;
   }
 
@@ -196,4 +216,3 @@ make_mailbox_element(strong_actor_ptr sender, message_id id,
 
 } // namespace caf
 
-#endif // CAF_MAILBOX_ELEMENT_HPP

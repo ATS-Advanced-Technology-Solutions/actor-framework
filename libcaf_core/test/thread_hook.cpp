@@ -33,6 +33,8 @@ using atomic_count = std::atomic<size_t>;
 size_t assumed_thread_count;
 size_t assumed_init_calls;
 
+std::mutex mx;
+
 struct dummy_thread_hook : thread_hook {
   void init(actor_system&) override {
     // nop
@@ -84,7 +86,7 @@ template <class Hook>
 struct config : actor_system_config {
   config() {
     add_thread_hook<Hook>();
-    logger_verbosity = atom("quiet");
+    set("logger.verbosity", atom("quiet"));
   }
 };
 
@@ -117,7 +119,9 @@ CAF_TEST_FIXTURE_SCOPE(counting_hook, fixture<counting_thread_hook>)
 
 CAF_TEST(counting_system_without_actor) {
   assumed_init_calls = 1;
-  assumed_thread_count = cfg.scheduler_max_threads;
+  assumed_thread_count = get_or(cfg, "scheduler.max-threads",
+                                defaults::scheduler::max_threads)
+                         + 1; // caf.clock
   auto& sched = sys.scheduler();
   if (sched.detaches_utility_actors())
     assumed_thread_count += sched.num_utility_actors();
@@ -125,7 +129,9 @@ CAF_TEST(counting_system_without_actor) {
 
 CAF_TEST(counting_system_with_actor) {
   assumed_init_calls = 1;
-  assumed_thread_count = cfg.scheduler_max_threads + 1;
+  assumed_thread_count = get_or(cfg, "scheduler.max-threads",
+                                defaults::scheduler::max_threads)
+                         + 2; // caf.clock and detached actor
   auto& sched = sys.scheduler();
   if (sched.detaches_utility_actors())
     assumed_thread_count += sched.num_utility_actors();

@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_SPAWN_OPTIONS_HPP
-#define CAF_SPAWN_OPTIONS_HPP
+#pragma once
 
 namespace caf {
 
@@ -64,10 +63,6 @@ constexpr spawn_options detached = spawn_options::detach_flag;
 /// Causes the runtime to ignore the new actor in `await_all_actors_done()`.
 constexpr spawn_options hidden = spawn_options::hide_flag;
 
-/// Causes the new actor to evaluate message priorities.
-/// @note This implicitly causes the actor to run in its own thread.
-constexpr spawn_options priority_aware = spawn_options::priority_aware_flag;
-
 /// Causes the new actor to delay its
 /// initialization until a message arrives.
 constexpr spawn_options lazy_init = spawn_options::lazy_init_flag;
@@ -86,8 +81,8 @@ constexpr bool has_detach_flag(spawn_options opts) {
 
 /// Checks wheter the {@link priority_aware} flag is set in `opts`.
 /// @relates spawn_options
-constexpr bool has_priority_aware_flag(spawn_options opts) {
-  return has_spawn_option(opts, priority_aware);
+constexpr bool has_priority_aware_flag(spawn_options) {
+  return true;
 }
 
 /// Checks wheter the {@link hidden} flag is set in `opts`.
@@ -132,4 +127,3 @@ constexpr spawn_options make_unbound(spawn_options opts) {
 
 } // namespace caf
 
-#endif // CAF_SPAWN_OPTIONS_HPP

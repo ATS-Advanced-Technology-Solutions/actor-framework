@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_TYPE_TRAITS_HPP
-#define CAF_DETAIL_TYPE_TRAITS_HPP
+#pragma once
 
 #include <tuple>
 #include <chrono>
@@ -30,6 +29,7 @@
 #include "caf/fwd.hpp"
 #include "caf/timestamp.hpp"
 
+#include "caf/detail/is_one_of.hpp"
 #include "caf/detail/type_list.hpp"
 
 #define CAF_HAS_MEMBER_TRAIT(name)                                             \
@@ -126,19 +126,6 @@ struct disjunction<X, Xs...> {
   static constexpr bool value = X || disjunction<Xs...>::value;
 };
 
-/// Checks wheter `X` is in the template parameter pack Ts.
-template <class X, class... Ts>
-struct is_one_of;
-
-template <class X>
-struct is_one_of<X> : std::false_type {};
-
-template <class X, class... Ts>
-struct is_one_of<X, X, Ts...> : std::true_type {};
-
-template <class X, typename T0, class... Ts>
-struct is_one_of<X, T0, Ts...> : is_one_of<X, Ts...> {};
-
 /// Checks whether `T` is a `std::chrono::duration`.
 template <class T>
 struct is_duration : std::false_type {};
@@ -171,8 +158,15 @@ struct is_primitive {
                                 || std::is_convertible<T, atom_value>::value;
 };
 
+// Workaround for weird GCC 4.8 STL implementation that breaks
+// `std::is_convertible<T, atom_value>::value` for tuples containing atom
+// constants.
+// TODO: remove when dropping support for GCC 4.8.
+template <class... Ts>
+struct is_primitive<std::tuple<Ts...>> : std::false_type {};
+
 /// Checks whether `T1` is comparable with `T2`.
-template <class T1, typename T2>
+template <class T1, class T2>
 class is_comparable {
   // SFINAE: If you pass a "bool*" as third argument, then
   //     decltype(cmp_help_fun(...)) is bool if there's an
@@ -181,16 +175,25 @@ class is_comparable {
   //     cmp_help_fun(A*, B*, void*). If there's no operator==(A, B)
   //     available, then cmp_help_fun(A*, B*, void*) is the only
   //     candidate and thus decltype(cmp_help_fun(...)) is void.
-  template <class A, typename B>
+  template <class A, class B>
   static bool cmp_help_fun(const A* arg0, const B* arg1,
-                           decltype(*arg0 == *arg1)* = nullptr);
+                           decltype(*arg0 == *arg1)*,
+                           std::integral_constant<bool, false>);
 
-  template <class A, typename B>
-  static void cmp_help_fun(const A*, const B*, void* = nullptr);
+  // silences float-equal warnings caused by decltype(*arg0 == *arg1)
+  template <class A, class B>
+  static bool cmp_help_fun(const A*, const B*, bool*,
+                           std::integral_constant<bool, true>);
 
-  using result_type = decltype(cmp_help_fun(static_cast<T1*>(nullptr),
-                                            static_cast<T2*>(nullptr),
-                                            static_cast<bool*>(nullptr)));
+  template <class A, class B, class C>
+  static void cmp_help_fun(const A*, const B*, void*, C);
+
+  using result_type = decltype(cmp_help_fun(
+    static_cast<T1*>(nullptr), static_cast<T2*>(nullptr),
+    static_cast<bool*>(nullptr),
+    std::integral_constant<bool, std::is_arithmetic<T1>::value
+                                   && std::is_arithmetic<T2>::value>{}));
+
 public:
   static constexpr bool value = std::is_same<bool, result_type>::value;
 };
@@ -490,6 +493,20 @@ public:
   static constexpr bool value = std::is_same<bool, result_type>::value;
 };
 
+/// Checks wheter `F` is callable with arguments of types `Ts...`.
+template <class F, class... Ts>
+struct is_callable_with {
+  template <class U>
+  static auto sfinae(U*)
+  -> decltype((std::declval<U&>())(std::declval<Ts>()...), std::true_type());
+
+  template <class U>
+  static auto sfinae(...) -> std::false_type;
+
+  using type = decltype(sfinae<F>(nullptr));
+  static constexpr bool value = type::value;
+};
+
 /// Checks wheter `F` takes mutable references.
 ///
 /// A manipulator is a functor that manipulates its arguments via
@@ -543,6 +560,19 @@ template <class T>
 class has_name<T, true> {
 public:
   static constexpr bool value = false;
+};
+
+template <class T>
+class has_peek_all {
+private:
+  template <class U>
+  static int fun(const U*,
+                 decltype(std::declval<U&>().peek_all(unit))* = nullptr);
+
+  static char fun(const void*);
+
+public:
+  static constexpr bool value = sizeof(fun(static_cast<T*>(nullptr))) > 1;
 };
 
 CAF_HAS_MEMBER_TRAIT(size);
@@ -627,7 +657,54 @@ struct transfer_const<const T, U> {
 template <class T, class U>
 using transfer_const_t = typename transfer_const<T, U>::type;
 
+template <class T>
+struct is_stream : std::false_type {};
+
+template <class T>
+struct is_stream<stream<T>> : std::true_type {};
+
+template <class T>
+struct is_result : std::false_type {};
+
+template <class T>
+struct is_result<result<T>> : std::true_type {};
+
+template <class T>
+struct is_expected : std::false_type {};
+
+template <class T>
+struct is_expected<expected<T>> : std::true_type {};
+
+// Checks whether `T` and `U` are integers of the same size and signedness.
+template <class T, class U,
+          bool Enable = std::is_integral<T>::value
+                        && std::is_integral<U>::value
+                        && !std::is_same<T, bool>::value>
+struct is_equal_int_type {
+  static constexpr bool value = sizeof(T) == sizeof(U)
+                                && std::is_signed<T>::value
+                                   == std::is_signed<U>::value;
+};
+
+template <class T, typename U>
+struct is_equal_int_type<T, U, false> : std::false_type { };
+
+/// Compares `T` to `U` und evaluates to `true_type` if either
+/// `T == U or if T and U are both integral types of the
+/// same size and signedness. This works around the issue that
+/// `uint8_t != unsigned char on some compilers.
+template <class T, typename U>
+struct is_same_ish
+    : std::conditional<
+        std::is_same<T, U>::value,
+        std::true_type,
+        is_equal_int_type<T, U>
+      >::type { };
+
+/// Utility for fallbacks calling `static_assert`.
+template <class>
+struct always_false : std::false_type {};
+
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_DETAIL_TYPE_TRAITS_HPP

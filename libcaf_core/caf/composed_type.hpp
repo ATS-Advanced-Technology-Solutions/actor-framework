@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_COMPOSED_TYPE_HPP
-#define CAF_COMPOSED_TYPE_HPP
+#pragma once
 
 #include "caf/fwd.hpp"
 #include "caf/replies_to.hpp"
@@ -76,46 +75,49 @@ struct composed_type<detail::type_list<typed_mpi<detail::type_list<In...>,
 
 // case #2
 template <class... In, class... Out, class... Xs, class Ys,
-          class... MapsTo, class... Zs, class... Rs>
+          class M, class... Ms, class... Zs, class... Rs>
 struct composed_type<detail::type_list<typed_mpi<detail::type_list<In...>,
                                                  output_tuple<Out...>>, Xs...>,
                      Ys,
                      detail::type_list<typed_mpi<detail::type_list<Out...>,
-                                                 output_stream<MapsTo...>>,
+                                                 output_stream<M, Ms...>>,
                                        Zs...>,
                      detail::type_list<Rs...>>
     : composed_type<detail::type_list<Xs...>, Ys, Ys,
                     detail::type_list<Rs...,
                                       typed_mpi<detail::type_list<In...>,
-                                                output_stream<MapsTo...>>>> {};
+                                                output_stream<M, Ms...>>>> {
+};
 
 // case #3
-template <class... In, class... Out, class... Xs, class Ys,
-          class... MapsTo, class... Zs, class... Rs>
+template <class... In, class O, class... Out, class... Xs, class Ys,
+          class M, class... Ms, class... Zs, class... Rs>
 struct composed_type<detail::type_list<typed_mpi<detail::type_list<In...>,
-                                            output_stream<Out...>>, Xs...>,
+                                            output_stream<O, Out...>>, Xs...>,
                      Ys,
-                     detail::type_list<typed_mpi<detail::type_list<Out...>,
-                                            output_tuple<MapsTo...>>, Zs...>,
+                     detail::type_list<typed_mpi<detail::type_list<O, Out...>,
+                                            output_tuple<M, Ms...>>, Zs...>,
                      detail::type_list<Rs...>>
     : composed_type<detail::type_list<Xs...>, Ys, Ys,
                     detail::type_list<Rs...,
                                       typed_mpi<detail::type_list<In...>,
-                                                output_stream<MapsTo...>>>> {};
+                                                output_stream<M, Ms...>>>> {
+};
 
 // case #4
-template <class... In, class... Out, class... Xs, class Ys,
-          class... MapsTo, class... Zs, class... Rs>
+template <class... In, class O, class... Out, class... Xs, class Ys,
+          class M, class... Ms, class... Zs, class... Rs>
 struct composed_type<detail::type_list<typed_mpi<detail::type_list<In...>,
-                                            output_stream<Out...>>, Xs...>,
+                                            output_stream<O, Out...>>, Xs...>,
                      Ys,
-                     detail::type_list<typed_mpi<detail::type_list<Out...>,
-                                            output_stream<MapsTo...>>, Zs...>,
+                     detail::type_list<typed_mpi<detail::type_list<O, Out...>,
+                                            output_stream<M, Ms...>>, Zs...>,
                      detail::type_list<Rs...>>
     : composed_type<detail::type_list<Xs...>, Ys, Ys,
                     detail::type_list<Rs...,
                                       typed_mpi<detail::type_list<In...>,
-                                                output_stream<MapsTo...>>>> {};
+                                                output_stream<M, Ms...>>>> {
+};
 
 // default case (recurse over Zs)
 template <class In, class Out, class... Xs, class Ys,
@@ -135,4 +137,3 @@ using composed_type_t =
 
 } // namespace caf
 
-#endif // CAF_COMPOSED_TYPE_HPP

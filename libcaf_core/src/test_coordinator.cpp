@@ -20,8 +20,10 @@
 
 #include <limits>
 
-#include "caf/resumable.hpp"
+#include "caf/actor_system_config.hpp"
 #include "caf/monitorable_actor.hpp"
+#include "caf/raise_error.hpp"
+#include "caf/resumable.hpp"
 
 namespace caf {
 namespace scheduler {
@@ -85,7 +87,8 @@ void test_coordinator::start() {
 }
 
 void test_coordinator::stop() {
-  run_dispatch_loop();
+  while (run() > 0)
+    trigger_timeouts();
 }
 
 void test_coordinator::enqueue(resumable* ptr) {
@@ -142,27 +145,6 @@ size_t test_coordinator::run(size_t max_count) {
   size_t res = 0;
   while (res < max_count && try_run_once())
     ++res;
-  return res;
-}
-
-bool test_coordinator::dispatch_once() {
-  return clock().dispatch_once();
-}
-
-size_t test_coordinator::dispatch() {
-  return clock().dispatch();
-}
-
-std::pair<size_t, size_t> test_coordinator::run_dispatch_loop() {
-  std::pair<size_t, size_t> res;
-  size_t i = 0;
-  do {
-    auto x = run();
-    auto y = dispatch();
-    res.first += x;
-    res.second += y;
-    i = x + y;
-  } while (i > 0);
   return res;
 }
 

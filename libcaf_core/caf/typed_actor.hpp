@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_TYPED_ACTOR_HPP
-#define CAF_TYPED_ACTOR_HPP
+#pragma once
 
 #include <cstddef>
 
@@ -32,7 +31,6 @@
 #include "caf/stateful_actor.hpp"
 #include "caf/typed_behavior.hpp"
 #include "caf/typed_response_promise.hpp"
-#include "caf/unsafe_actor_handle_init.hpp"
 
 #include "caf/detail/mpi_splice.hpp"
 #include "caf/decorator/splitter.hpp"
@@ -173,10 +171,6 @@ class typed_actor : detail::comparable<typed_actor<Sigs...>>,
     return *this;
   }
 
-  explicit typed_actor(const unsafe_actor_handle_init_t&) CAF_DEPRECATED {
-    // nop
-  }
-
   /// Queries whether this actor handle is valid.
   inline explicit operator bool() const {
     return static_cast<bool>(ptr_);
@@ -210,12 +204,6 @@ class typed_actor : detail::comparable<typed_actor<Sigs...>>,
   /// Exchange content of `*this` and `other`.
   void swap(typed_actor& other) noexcept {
     ptr_.swap(other.ptr_);
-  }
-
-  /// Queries whether this object was constructed using
-  /// `unsafe_actor_handle_init` or is in moved-from state.
-  bool unsafe() const CAF_DEPRECATED {
-    return !ptr_;
   }
 
   /// @cond PRIVATE
@@ -374,4 +362,3 @@ struct hash<caf::typed_actor<Sigs...>> {
 };
 } // namespace std
 
-#endif // CAF_TYPED_ACTOR_HPP

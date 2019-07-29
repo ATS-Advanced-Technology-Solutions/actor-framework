@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ALL_HPP
-#define CAF_ALL_HPP
+#pragma once
 
 #include "caf/config.hpp"
 
@@ -39,6 +38,7 @@
 #include "caf/message.hpp"
 #include "caf/node_id.hpp"
 #include "caf/behavior.hpp"
+#include "caf/defaults.hpp"
 #include "caf/duration.hpp"
 #include "caf/expected.hpp"
 #include "caf/exec_main.hpp"
@@ -55,13 +55,18 @@
 #include "caf/actor_proxy.hpp"
 #include "caf/exit_reason.hpp"
 #include "caf/local_actor.hpp"
+#include "caf/raise_error.hpp"
 #include "caf/ref_counted.hpp"
+#include "caf/stream_slot.hpp"
 #include "caf/thread_hook.hpp"
 #include "caf/typed_actor.hpp"
 #include "caf/actor_system.hpp"
+#include "caf/config_value.hpp"
 #include "caf/deserializer.hpp"
 #include "caf/scoped_actor.hpp"
+#include "caf/upstream_msg.hpp"
 #include "caf/actor_ostream.hpp"
+#include "caf/config_option.hpp"
 #include "caf/function_view.hpp"
 #include "caf/index_mapping.hpp"
 #include "caf/spawn_options.hpp"
@@ -74,12 +79,11 @@
 #include "caf/stateful_actor.hpp"
 #include "caf/typed_behavior.hpp"
 #include "caf/proxy_registry.hpp"
+#include "caf/downstream_msg.hpp"
 #include "caf/behavior_policy.hpp"
 #include "caf/message_builder.hpp"
 #include "caf/message_handler.hpp"
 #include "caf/response_handle.hpp"
-#include "caf/fused_scatterer.hpp"
-#include "caf/random_gatherer.hpp"
 #include "caf/system_messages.hpp"
 #include "caf/abstract_channel.hpp"
 #include "caf/may_have_timeout.hpp"
@@ -89,17 +93,19 @@
 #include "caf/composed_behavior.hpp"
 #include "caf/event_based_actor.hpp"
 #include "caf/primitive_variant.hpp"
+#include "caf/stream_serializer.hpp"
+#include "caf/make_config_option.hpp"
 #include "caf/timeout_definition.hpp"
-#include "caf/broadcast_scatterer.hpp"
 #include "caf/actor_system_config.hpp"
 #include "caf/binary_deserializer.hpp"
 #include "caf/composable_behavior.hpp"
+#include "caf/config_option_adder.hpp"
+#include "caf/stream_deserializer.hpp"
 #include "caf/typed_actor_pointer.hpp"
 #include "caf/scoped_execution_unit.hpp"
 #include "caf/typed_response_promise.hpp"
-#include "caf/random_topic_scatterer.hpp"
-#include "caf/broadcast_topic_scatterer.hpp"
 #include "caf/typed_event_based_actor.hpp"
+#include "caf/fused_downstream_manager.hpp"
 #include "caf/abstract_composable_behavior.hpp"
 
 #include "caf/decorator/sequencer.hpp"
@@ -404,4 +410,3 @@
 /// An event-based "Dining Philosophers" implementation.
 /// @example dining_philosophers.cpp
 
-#endif // CAF_ALL_HPP

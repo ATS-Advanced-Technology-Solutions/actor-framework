@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_TYPED_ACTOR_VIEW_HPP
-#define CAF_TYPED_ACTOR_VIEW_HPP
+#pragma once
 
 #include "caf/scheduled_actor.hpp"
 
@@ -88,9 +87,9 @@ public:
     return self_->make_response_promise<Ts...>();
   }
 
-  template <class T>
-  void monitor(const T& x) {
-    self_->monitor(x);
+  template <message_priority P = message_priority::normal, class Handle = actor>
+  void monitor(const Handle& x) {
+    self_->monitor<P>(x);
   }
 
   template <class T>
@@ -139,4 +138,3 @@ private:
 
 } // namespace caf
 
-#endif // CAF_TYPED_ACTOR_VIEW_HPP

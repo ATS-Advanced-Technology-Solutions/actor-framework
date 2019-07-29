@@ -16,11 +16,11 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_NETWORK_RECEIVE_BUFFER_HPP
-#define CAF_IO_NETWORK_RECEIVE_BUFFER_HPP
+#pragma once
 
-#include <memory>
 #include <cstddef>
+#include <cstring>
+#include <memory>
 
 #include "caf/allowed_unsafe_message_type.hpp"
 
@@ -46,11 +46,11 @@ public:
                                      std::default_delete<value_type[]>>;
 
   /// Create an empty container.
-  receive_buffer();
+  receive_buffer() noexcept;
 
-  /// Create an empty container with `size` storage. Data in the storage is
-  /// not initialized.
-  receive_buffer(size_t size);
+  /// Create an empty container of size `count`. Data in the storage is not
+  /// initialized.
+  receive_buffer(size_t count);
 
   /// Move constructor.
   receive_buffer(receive_buffer&& other) noexcept;
@@ -75,18 +75,18 @@ public:
   }
 
   /// Returns the number of stored elements.
-  size_type size() const noexcept {
+  inline size_type size() const noexcept {
     return size_;
   }
 
   /// Returns the number of elements that the container has allocated space for.
-  size_type capacity() const noexcept {
+  inline size_type capacity() const noexcept {
     return capacity_;
   }
 
   /// Returns the maximum possible number of elements the container
   /// could theoretically hold.
-  size_type max_size() const noexcept {
+  inline size_type max_size() const noexcept {
     return std::numeric_limits<size_t>::max();
   }
 
@@ -143,7 +143,7 @@ public:
     return buffer_.get() + size_;
   }
 
-  /// Returns an iterator to the reverse beginning.
+  /// Returns jan iterator to the reverse beginning.
   inline reverse_iterator rbegin() noexcept {
     return reverse_iterator{buffer_.get() + size_};
   }
@@ -176,6 +176,22 @@ public:
   /// Insert `value` before `pos`.
   iterator insert(iterator pos, value_type value);
 
+  /// Insert `value` before `pos`.
+  template <class InputIterator>
+  iterator insert(iterator pos, InputIterator first, InputIterator last) {
+    auto n = std::distance(first, last);
+    if (n == 0)
+      return pos;
+    auto offset = static_cast<size_t>(std::distance(begin(), pos));
+    auto old_size = size_;
+    resize(old_size + static_cast<size_t>(n));
+    pos = begin() + offset;
+    if (offset != old_size) {
+      memmove(pos + n, pos, old_size - offset);
+    }
+    return std::copy(first, last, pos);
+  }
+
   /// Append `value`.
   void push_back(value_type value);
 
@@ -195,4 +211,3 @@ private:
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_NETWORK_RECEIVE_BUFFER_HPP

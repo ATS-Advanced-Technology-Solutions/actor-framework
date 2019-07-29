@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ACTOR_POOL_HPP
-#define CAF_ACTOR_POOL_HPP
+#pragma once
 
 #include <vector>
 #include <functional>
@@ -103,8 +102,10 @@ public:
 
   actor_pool(actor_config& cfg);
 
+  void on_destroy() override;
+
 protected:
-  void on_cleanup() override;
+  void on_cleanup(const error& reason) override;
 
 private:
   bool filter(upgrade_lock<detail::shared_spinlock>&,
@@ -122,4 +123,3 @@ private:
 
 } // namespace caf
 
-#endif // CAF_ACTOR_POOL_HPP

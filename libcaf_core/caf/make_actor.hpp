@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_MAKE_ACTOR_HPP
-#define CAF_MAKE_ACTOR_HPP
+#pragma once
 
 #include <type_traits>
 
@@ -33,10 +32,10 @@ namespace caf {
 
 template <class T, class R = infer_handle_from_class_t<T>, class... Ts>
 R make_actor(actor_id aid, node_id nid, actor_system* sys, Ts&&... xs) {
-#if defined(CAF_LOG_LEVEL) && CAF_LOG_LEVEL >= CAF_LOG_LEVEL_DEBUG
+#if CAF_LOG_LEVEL >= CAF_LOG_LEVEL_DEBUG
   actor_storage<T>* ptr = nullptr;
   if (logger::current_logger()->accepts(CAF_LOG_LEVEL_DEBUG,
-                                        CAF_LOG_FLOW_COMPONENT)) {
+                                        caf::atom(CAF_LOG_FLOW_COMPONENT))) {
     std::string args;
     args = deep_to_string(std::forward_as_tuple(xs...));
     ptr = new actor_storage<T>(aid, std::move(nid), sys,
@@ -55,4 +54,3 @@ R make_actor(actor_id aid, node_id nid, actor_system* sys, Ts&&... xs) {
 
 } // namespace caf
 
-#endif // CAF_MAKE_ACTOR_HPP

@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_FORWARDING_ACTOR_PROXY_HPP
-#define CAF_FORWARDING_ACTOR_PROXY_HPP
+#pragma once
 
 #include "caf/actor.hpp"
 #include "caf/actor_proxy.hpp"
@@ -47,10 +46,9 @@ private:
   void forward_msg(strong_actor_ptr sender, message_id mid, message msg,
                    const forwarding_stack* fwd = nullptr);
 
-  mutable detail::shared_spinlock mtx_;
+  mutable detail::shared_spinlock broker_mtx_;
   actor broker_;
 };
 
 } // namespace caf
 
-#endif // CAF_FORWARDING_ACTOR_PROXY_HPP

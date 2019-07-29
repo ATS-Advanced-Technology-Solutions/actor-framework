@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_STATEFUL_ACTOR_HPP
-#define CAF_STATEFUL_ACTOR_HPP
+#pragma once
 
 #include <new>
 #include <type_traits>
@@ -36,7 +35,7 @@ namespace caf {
 /// actor called `quit`. This state management brakes cycles and
 /// allows actors to automatically release ressources as soon
 /// as possible.
-template <class State, class Base = event_based_actor>
+template <class State, class Base /* = event_based_actor (see fwd.hpp) */>
 class stateful_actor : public Base {
 public:
   template <class... Ts>
@@ -131,4 +130,3 @@ private:
 
 } // namespace caf
 
-#endif // CAF_STATEFUL_ACTOR_HPP

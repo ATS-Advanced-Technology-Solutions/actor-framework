@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_DOORMAN_HPP
-#define CAF_IO_DOORMAN_HPP
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -44,8 +43,6 @@ public:
 
   ~doorman() override;
 
-  void io_failure(execution_unit* ctx, network::operation op) override;
-
   using doorman_base::new_connection;
 
   bool new_connection(execution_unit* ctx, connection_handle x);
@@ -66,4 +63,3 @@ using doorman_ptr = intrusive_ptr<doorman>;
 // BASP broker.
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(caf::io::doorman_ptr)
 
-#endif // CAF_IO_DOORMAN_HPP

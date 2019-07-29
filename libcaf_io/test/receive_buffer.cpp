@@ -28,21 +28,26 @@
 using namespace caf;
 using caf::io::network::receive_buffer;
 
+namespace {
+
 struct fixture {
+  receive_buffer a;
+  receive_buffer b;
+  std::vector<char> vec;
 
-receive_buffer a;
-receive_buffer b;
-std::vector<char> vec;
+  fixture() :  b(1024ul), vec{'h', 'a', 'l', 'l', 'o'} {
+    // nop
+  }
 
-fixture()
-  : a{},
-    b{1024ul},
-    vec{'h', 'a', 'l', 'l', 'o'} {
-  // nop
-}
-
+  std::string as_string(const receive_buffer& xs) {
+    std::string result;
+    for (auto& x : xs)
+      result += static_cast<char>(x);
+    return result;
+  }
 };
 
+} // namespace <anonymous>
 
 CAF_TEST_FIXTURE_SCOPE(receive_buffer_tests, fixture)
 
@@ -51,15 +56,15 @@ CAF_TEST(constuctors) {
   CAF_CHECK_EQUAL(a.capacity(), 0ul);
   CAF_CHECK_EQUAL(a.data(), nullptr);
   CAF_CHECK(a.empty());
-  CAF_CHECK_EQUAL(b.size(), 0ul);
+  CAF_CHECK_EQUAL(b.size(), 1024ul);
   CAF_CHECK_EQUAL(b.capacity(), 1024ul);
   CAF_CHECK(b.data() != nullptr);
-  CAF_CHECK(b.empty());
+  CAF_CHECK(!b.empty());
   receive_buffer other{std::move(b)};
-  CAF_CHECK_EQUAL(other.size(), 0ul);
+  CAF_CHECK_EQUAL(other.size(), 1024ul);
   CAF_CHECK_EQUAL(other.capacity(), 1024ul);
   CAF_CHECK(other.data() != nullptr);
-  CAF_CHECK(other.empty());
+  CAF_CHECK(!other.empty());
 }
 
 CAF_TEST(reserve) {
@@ -133,26 +138,17 @@ CAF_TEST(push_back) {
 CAF_TEST(insert) {
   for (auto c: vec)
     a.insert(a.end(), c);
-  CAF_CHECK_EQUAL(*(a.data() + 0), 'h');
-  CAF_CHECK_EQUAL(*(a.data() + 1), 'a');
-  CAF_CHECK_EQUAL(*(a.data() + 2), 'l');
-  CAF_CHECK_EQUAL(*(a.data() + 3), 'l');
-  CAF_CHECK_EQUAL(*(a.data() + 4), 'o');
+  CAF_CHECK_EQUAL(as_string(a), "hallo");
   a.insert(a.begin(), '!');
-  CAF_CHECK_EQUAL(*(a.data() + 0), '!');
-  CAF_CHECK_EQUAL(*(a.data() + 1), 'h');
-  CAF_CHECK_EQUAL(*(a.data() + 2), 'a');
-  CAF_CHECK_EQUAL(*(a.data() + 3), 'l');
-  CAF_CHECK_EQUAL(*(a.data() + 4), 'l');
-  CAF_CHECK_EQUAL(*(a.data() + 5), 'o');
+  CAF_CHECK_EQUAL(as_string(a), "!hallo");
   a.insert(a.begin() + 4, '-');
-  CAF_CHECK_EQUAL(*(a.data() + 0), '!');
-  CAF_CHECK_EQUAL(*(a.data() + 1), 'h');
-  CAF_CHECK_EQUAL(*(a.data() + 2), 'a');
-  CAF_CHECK_EQUAL(*(a.data() + 3), 'l');
-  CAF_CHECK_EQUAL(*(a.data() + 4), '-');
-  CAF_CHECK_EQUAL(*(a.data() + 5), 'l');
-  CAF_CHECK_EQUAL(*(a.data() + 6), 'o');
+  CAF_CHECK_EQUAL(as_string(a), "!hal-lo");
+  std::string foo = "foo:";
+  a.insert(a.begin() + 1, foo.begin(), foo.end());
+  CAF_CHECK_EQUAL(as_string(a), "!foo:hal-lo");
+  std::string bar = ":bar";
+  a.insert(a.end(), bar.begin(), bar.end());
+  CAF_CHECK_EQUAL(as_string(a), "!foo:hal-lo:bar");
 }
 
 CAF_TEST(shrink_to_fit) {
@@ -167,7 +163,7 @@ CAF_TEST(swap) {
   for (auto c : vec)
     a.push_back(c);
   std::swap(a, b);
-  CAF_CHECK_EQUAL(a.size(), 0ul);
+  CAF_CHECK_EQUAL(a.size(), 1024ul);
   CAF_CHECK_EQUAL(a.capacity(), 1024ul);
   CAF_CHECK(a.data() != nullptr);
   CAF_CHECK_EQUAL(b.size(), vec.size());

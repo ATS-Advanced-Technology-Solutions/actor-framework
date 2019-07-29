@@ -19,7 +19,7 @@
 #include "caf/config.hpp"
 
 #define CAF_SUITE io_dynamic_broker
-#include "caf/test/unit_test.hpp"
+#include "caf/test/dsl.hpp"
 
 #include <memory>
 #include <iostream>
@@ -148,11 +148,14 @@ behavior peer_acceptor_fun(broker* self, const actor& buddy) {
 
 void run_client(int argc, char** argv, uint16_t port) {
   actor_system_config cfg;
-  actor_system system{cfg.load<io::middleman>().parse(argc, argv)};
+  cfg.load<io::middleman>();
+  if (auto err = cfg.parse(argc, argv))
+    CAF_FAIL("failed to parse config: " << to_string(err));
+  actor_system system{cfg};
   auto p = system.spawn(ping, size_t{10});
   CAF_MESSAGE("spawn_client...");
-  CAF_EXP_THROW(cl, system.middleman().spawn_client(peer_fun, "127.0.0.1",
-                                                    port, p));
+  auto cl = unbox(system.middleman().spawn_client(peer_fun,
+                                                  "127.0.0.1", port, p));
   CAF_MESSAGE("spawn_client finished");
   anon_send(p, kickoff_atom::value, cl);
   CAF_MESSAGE("`kickoff_atom` has been send");
@@ -160,7 +163,10 @@ void run_client(int argc, char** argv, uint16_t port) {
 
 void run_server(int argc, char** argv) {
   actor_system_config cfg;
-  actor_system system{cfg.load<io::middleman>().parse(argc, argv)};
+  cfg.load<io::middleman>();
+  if (auto err = cfg.parse(argc, argv))
+    CAF_FAIL("failed to parse config: " << to_string(err));
+  actor_system system{cfg};
   scoped_actor self{system};
   CAF_MESSAGE("spawn peer acceptor");
   auto serv = system.middleman().spawn_broker(peer_acceptor_fun,

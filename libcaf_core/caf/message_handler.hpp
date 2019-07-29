@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_MESSAGE_HANDLER_HPP
-#define CAF_MESSAGE_HANDLER_HPP
+#pragma once
 
 #include <list>
 #include <vector>
@@ -29,11 +28,12 @@
 #include "caf/none.hpp"
 #include "caf/intrusive_ptr.hpp"
 
-#include "caf/message.hpp"
-#include "caf/duration.hpp"
 #include "caf/behavior.hpp"
-#include "caf/ref_counted.hpp"
+#include "caf/duration.hpp"
+#include "caf/match_case.hpp"
 #include "caf/may_have_timeout.hpp"
+#include "caf/message.hpp"
+#include "caf/ref_counted.hpp"
 #include "caf/timeout_definition.hpp"
 
 #include "caf/detail/behavior_impl.hpp"
@@ -145,4 +145,3 @@ private:
 
 } // namespace caf
 
-#endif // CAF_MESSAGE_HANDLER_HPP

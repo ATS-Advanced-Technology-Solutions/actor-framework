@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DOWNSTREAM_HPP
-#define CAF_DOWNSTREAM_HPP
+#pragma once
 
 #include <deque>
 #include <vector>
@@ -48,6 +47,11 @@ public:
     buf_.emplace_back(std::forward<Ts>(xs)...);
   }
 
+  template <class Iterator, class Sentinel>
+  void append(Iterator first, Sentinel last) {
+    buf_.insert(buf_.end(), first, last);
+  }
+
   // @private
   queue_type& buf() {
     return buf_;
@@ -59,4 +63,3 @@ protected:
 
 } // namespace caf
 
-#endif // CAF_DOWNSTREAM_HPP

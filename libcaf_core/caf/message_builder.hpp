@@ -16,14 +16,13 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_MESSAGE_BUILDER_HPP
-#define CAF_MESSAGE_BUILDER_HPP
+#pragma once
 
 #include <vector>
 
 #include "caf/fwd.hpp"
+#include "caf/make_message.hpp"
 #include "caf/message.hpp"
-#include "caf/message_handler.hpp"
 #include "caf/type_erased_value.hpp"
 
 namespace caf {
@@ -76,6 +75,27 @@ public:
     return append_all(std::forward<Ts>(xs)...);
   }
 
+  template <size_t N, class... Ts>
+  message_builder& append_tuple(std::integral_constant<size_t, N>,
+                                std::integral_constant<size_t, N>,
+                                std::tuple<Ts...>&) {
+    return *this;
+  }
+
+  template <size_t I, size_t N, class... Ts>
+  message_builder& append_tuple(std::integral_constant<size_t, I>,
+                                std::integral_constant<size_t, N> e,
+                                std::tuple<Ts...>& xs) {
+    append(std::move(std::get<I>(xs)));
+    return append_tuple(std::integral_constant<size_t, I + 1>{}, e, xs);
+  }
+
+  template <class... Ts>
+  message_builder& append_tuple(std::tuple<Ts...> xs) {
+    return append_tuple(std::integral_constant<size_t, 0>{},
+                        std::integral_constant<size_t, sizeof...(Ts)>{}, xs);
+  }
+
   /// Converts the buffer to an actual message object without
   /// invalidating this message builder (nor clearing it).
   message to_message() const;
@@ -87,9 +107,7 @@ public:
   message move_to_message();
 
   /// @copydoc message::extract
-  inline message extract(message_handler f) const {
-    return to_message().extract(std::move(f));
-  }
+  message extract(message_handler f) const;
 
   /// @copydoc message::extract_opts
   inline message::cli_res extract_opts(std::vector<message::cli_arg> xs,
@@ -115,13 +133,8 @@ private:
 
   message_builder& emplace(type_erased_value_ptr);
 
-  detail::dynamic_message_data* data();
-
-  const detail::dynamic_message_data* data() const;
-
-  intrusive_ptr<ref_counted> data_; // hide dynamic_message_data implementation
+  intrusive_cow_ptr<detail::dynamic_message_data> data_;
 };
 
 } // namespace caf
 
-#endif // CAF_MESSAGE_BUILDER_HPP

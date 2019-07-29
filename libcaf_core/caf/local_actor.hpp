@@ -16,85 +16,52 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_LOCAL_ACTOR_HPP
-#define CAF_LOCAL_ACTOR_HPP
+#pragma once
 
 #include <atomic>
 #include <cstdint>
-#include <utility>
 #include <exception>
 #include <functional>
 #include <type_traits>
-#include <forward_list>
-#include <unordered_map>
+#include <utility>
 
-#include "caf/fwd.hpp"
-
-#include "caf/actor.hpp"
-#include "caf/error.hpp"
-#include "caf/extend.hpp"
-#include "caf/logger.hpp"
-#include "caf/message.hpp"
-#include "caf/duration.hpp"
-#include "caf/behavior.hpp"
-#include "caf/delegated.hpp"
-#include "caf/resumable.hpp"
-#include "caf/actor_cast.hpp"
-#include "caf/message_id.hpp"
-#include "caf/exit_reason.hpp"
-#include "caf/typed_actor.hpp"
-#include "caf/actor_config.hpp"
-#include "caf/actor_system.hpp"
-#include "caf/response_type.hpp"
-#include "caf/spawn_options.hpp"
 #include "caf/abstract_actor.hpp"
 #include "caf/abstract_group.hpp"
-#include "caf/execution_unit.hpp"
-#include "caf/message_handler.hpp"
-#include "caf/response_promise.hpp"
-#include "caf/message_priority.hpp"
+#include "caf/actor.hpp"
+#include "caf/actor_cast.hpp"
+#include "caf/actor_config.hpp"
+#include "caf/actor_system.hpp"
+#include "caf/behavior.hpp"
 #include "caf/check_typed_input.hpp"
+#include "caf/delegated.hpp"
+#include "caf/detail/type_traits.hpp"
+#include "caf/detail/typed_actor_util.hpp"
+#include "caf/detail/unique_function.hpp"
+#include "caf/duration.hpp"
+#include "caf/error.hpp"
+#include "caf/fwd.hpp"
+#include "caf/message.hpp"
+#include "caf/message_handler.hpp"
+#include "caf/message_id.hpp"
+#include "caf/message_priority.hpp"
 #include "caf/monitorable_actor.hpp"
-#include "caf/invoke_message_result.hpp"
+#include "caf/response_promise.hpp"
+#include "caf/response_type.hpp"
+#include "caf/resumable.hpp"
+#include "caf/spawn_options.hpp"
+#include "caf/typed_actor.hpp"
 #include "caf/typed_response_promise.hpp"
 
-#include "caf/scheduler/abstract_coordinator.hpp"
-
-#include "caf/detail/disposer.hpp"
-#include "caf/detail/behavior_stack.hpp"
-#include "caf/detail/typed_actor_util.hpp"
-#include "caf/detail/single_reader_queue.hpp"
-
 namespace caf {
-
-namespace detail {
-
-template <class... Ts>
-struct make_response_promise_helper {
-  using type = typed_response_promise<Ts...>;
-};
-
-template <class... Ts>
-struct make_response_promise_helper<typed_response_promise<Ts...>>
-    : make_response_promise_helper<Ts...> {};
-
-template <>
-struct make_response_promise_helper<response_promise> {
-  using type = response_promise;
-};
-
-} // namespace detail
 
 /// Base class for actors running on this node, either
 /// living in an own thread or cooperatively scheduled.
 class local_actor : public monitorable_actor {
 public:
-
   // -- member types -----------------------------------------------------------
 
-  /// A queue optimized for single-reader-many-writers.
-  using mailbox_type = detail::single_reader_queue<mailbox_element,
-                                                   detail::disposer>;
+  /// Defines a monotonic clock suitable for measuring intervals.
+  using clock_type = std::chrono::steady_clock;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -108,10 +75,21 @@ public:
 
   virtual void launch(execution_unit* eu, bool lazy, bool hide) = 0;
 
+  // -- time -------------------------------------------------------------------
+
+  /// Returns the current time.
+  clock_type::time_point now() const noexcept;
+
+  /// Returns the difference between `t0` and `t1`, allowing the clock to
+  /// return any arbitrary value depending on the measurement that took place.
+  clock_type::duration difference(atom_value measurement,
+                                  clock_type::time_point t0,
+                                  clock_type::time_point t1);
+
   // -- timeout management -----------------------------------------------------
 
   /// Requests a new timeout for `mid`.
-  /// @pre `mid.valid()`
+  /// @pre `mid.is_request()`
   void request_response_timeout(const duration& d, message_id mid);
 
   // -- spawn functions --------------------------------------------------------
@@ -119,7 +97,8 @@ public:
   template <class T, spawn_options Os = no_spawn_options, class... Ts>
   infer_handle_from_class_t<T> spawn(Ts&&... xs) {
     actor_config cfg{context()};
-    return eval_opts(Os, system().spawn_class<T, make_unbound(Os)>(cfg, std::forward<Ts>(xs)...));
+    return eval_opts(Os, system().spawn_class<T, make_unbound(Os)>(
+                           cfg, std::forward<Ts>(xs)...));
   }
 
   template <class T, spawn_options Os = no_spawn_options>
@@ -131,47 +110,65 @@ public:
 
   template <spawn_options Os = no_spawn_options, class F, class... Ts>
   infer_handle_from_fun_t<F> spawn(F fun, Ts&&... xs) {
+    using impl = infer_impl_from_fun_t<F>;
+    static constexpr bool spawnable = detail::spawnable<F, impl, Ts...>();
+    static_assert(spawnable,
+                  "cannot spawn function-based actor with given arguments");
     actor_config cfg{context()};
-    return eval_opts(Os, system().spawn_functor<make_unbound(Os)>(cfg, fun, std::forward<Ts>(xs)...));
+    static constexpr spawn_options unbound = make_unbound(Os);
+    detail::bool_token<spawnable> enabled;
+    return eval_opts(Os,
+                     system().spawn_functor<unbound>(enabled, cfg, fun,
+                                                     std::forward<Ts>(xs)...));
   }
 
   template <class T, spawn_options Os = no_spawn_options, class Groups,
             class... Ts>
   actor spawn_in_groups(const Groups& gs, Ts&&... xs) {
     actor_config cfg{context()};
-    return eval_opts(Os, system().spawn_class_in_groups<T, make_unbound(Os)>(cfg, gs.begin(), gs.end(), std::forward<Ts>(xs)...));
+    return eval_opts(Os, system().spawn_class_in_groups<T, make_unbound(Os)>(
+                           cfg, gs.begin(), gs.end(), std::forward<Ts>(xs)...));
   }
 
   template <class T, spawn_options Os = no_spawn_options, class... Ts>
   actor spawn_in_groups(std::initializer_list<group> gs, Ts&&... xs) {
     actor_config cfg{context()};
-    return eval_opts(Os, system().spawn_class_in_groups<T, make_unbound(Os)>(cfg, gs.begin(), gs.end(), std::forward<Ts>(xs)...));
+    return eval_opts(Os, system().spawn_class_in_groups<T, make_unbound(Os)>(
+                           cfg, gs.begin(), gs.end(), std::forward<Ts>(xs)...));
   }
 
   template <class T, spawn_options Os = no_spawn_options, class... Ts>
   actor spawn_in_group(const group& grp, Ts&&... xs) {
     actor_config cfg{context()};
     auto first = &grp;
-    return eval_opts(Os, system().spawn_class_in_groups<T, make_unbound(Os)>(cfg, first, first + 1, std::forward<Ts>(xs)...));
+    return eval_opts(Os, system().spawn_class_in_groups<T, make_unbound(Os)>(
+                           cfg, first, first + 1, std::forward<Ts>(xs)...));
   }
 
-  template <spawn_options Os = no_spawn_options, class Groups, class F, class... Ts>
+  template <spawn_options Os = no_spawn_options, class Groups, class F,
+            class... Ts>
   actor spawn_in_groups(const Groups& gs, F fun, Ts&&... xs) {
     actor_config cfg{context()};
-    return eval_opts(Os, system().spawn_fun_in_groups<make_unbound(Os)>(cfg, gs.begin(), gs.end(), fun, std::forward<Ts>(xs)...));
+    return eval_opts(
+      Os, system().spawn_fun_in_groups<make_unbound(Os)>(
+            cfg, gs.begin(), gs.end(), fun, std::forward<Ts>(xs)...));
   }
 
   template <spawn_options Os = no_spawn_options, class F, class... Ts>
   actor spawn_in_groups(std::initializer_list<group> gs, F fun, Ts&&... xs) {
     actor_config cfg{context()};
-    return eval_opts(Os, system().spawn_fun_in_groups<make_unbound(Os)>(cfg, gs.begin(), gs.end(), fun, std::forward<Ts>(xs)...));
+    return eval_opts(
+      Os, system().spawn_fun_in_groups<make_unbound(Os)>(
+            cfg, gs.begin(), gs.end(), fun, std::forward<Ts>(xs)...));
   }
 
   template <spawn_options Os = no_spawn_options, class F, class... Ts>
   actor spawn_in_group(const group& grp, F fun, Ts&&... xs) {
     actor_config cfg{context()};
     auto first = &grp;
-    return eval_opts(Os, system().spawn_fun_in_groups<make_unbound(Os)>(cfg, first, first + 1, fun, std::forward<Ts>(xs)...));
+    return eval_opts(Os,
+                     system().spawn_fun_in_groups<make_unbound(Os)>(
+                       cfg, first, first + 1, fun, std::forward<Ts>(xs)...));
   }
 
   // -- sending asynchronous messages ------------------------------------------
@@ -184,8 +181,9 @@ public:
   /// Sends an exit message to `dest`.
   template <class ActorHandle>
   void send_exit(const ActorHandle& dest, error reason) {
-    dest->eq_impl(make_message_id(), ctrl(), context(),
-                  exit_msg{address(), std::move(reason)});
+    if (dest)
+      dest->eq_impl(make_message_id(), ctrl(), context(),
+                    exit_msg{address(), std::move(reason)});
   }
 
   // -- miscellaneous actor operations -----------------------------------------
@@ -202,8 +200,12 @@ public:
 
   /// Returns the hosting actor system.
   inline actor_system& system() const {
-    CAF_ASSERT(context_);
-    return context_->system();
+    return home_system();
+  }
+
+  /// Returns the config of the hosting actor system.
+  inline const actor_system_config& config() const {
+    return system().config();
   }
 
   /// Returns the clock of the actor system.
@@ -213,7 +215,7 @@ public:
 
   /// @cond PRIVATE
 
-  void monitor(abstract_actor* ptr);
+  void monitor(abstract_actor* ptr, message_priority prio);
 
   /// @endcond
 
@@ -251,7 +253,7 @@ public:
     CAF_ASSERT(current_element_);
     auto& stages = current_element_->stages;
     if (!stages.empty())
-      stages.back();
+      return stages.back();
     return nullptr;
   }
 
@@ -286,11 +288,17 @@ public:
     return current_element_;
   }
 
+  /// Returns a pointer to the currently processed mailbox element.
+  /// @private
+  inline  void current_mailbox_element(mailbox_element* ptr) {
+    current_element_ = ptr;
+  }
+
   /// Adds a unidirectional `monitor` to `whom`.
   /// @note Each call to `monitor` creates a new, independent monitor.
-  template <class Handle>
+  template <message_priority P = message_priority::normal, class Handle = actor>
   void monitor(const Handle& whom) {
-    monitor(actor_cast<abstract_actor*>(whom));
+    monitor(actor_cast<abstract_actor*>(whom), P);
   }
 
   /// Removes a monitor from `whom`.
@@ -311,13 +319,9 @@ public:
   template <class... Ts>
   typename detail::make_response_promise_helper<Ts...>::type
   make_response_promise() {
-    auto& ptr = current_element_;
-    if (!ptr)
+    if (current_element_ == nullptr || current_element_->mid.is_answered())
       return {};
-    auto& mid = ptr->mid;
-    if (mid.is_answered())
-      return {};
-    return {this->ctrl(), *ptr};
+    return {this->ctrl(), *current_element_};
   }
 
   /// Creates a `response_promise` to respond to a request later on.
@@ -404,33 +408,14 @@ public:
     return {};
   }
 
-  inline mailbox_type& mailbox() {
-    return mailbox_;
-  }
-
   virtual void initialize();
 
   bool cleanup(error&& fail_state, execution_unit* host) override;
 
   message_id new_request_id(message_priority mp);
 
-  // -- message processing -----------------------------------------------------
-
-  /// Returns the next message from the mailbox or `nullptr`
-  /// if the mailbox is drained.
-  mailbox_element_ptr next_message();
-
-  /// Returns whether the mailbox contains at least one element.
-  bool has_next_message();
-
-  /// Appends `x` to the cache for later consumption.
-  void push_to_cache(mailbox_element_ptr ptr);
-
 protected:
   // -- member variables -------------------------------------------------------
-
-  // used by both event-based and blocking actors
-  mailbox_type mailbox_;
 
   // identifies the execution unit this actor is currently executed by
   execution_unit* context_;
@@ -442,9 +427,8 @@ protected:
   message_id last_request_id_;
 
   /// Factory function for returning initial behavior in function-based actors.
-  std::function<behavior (local_actor*)> initial_behavior_fac_;
+  detail::unique_function<behavior(local_actor*)> initial_behavior_fac_;
 };
 
 } // namespace caf
 
-#endif // CAF_LOCAL_ACTOR_HPP

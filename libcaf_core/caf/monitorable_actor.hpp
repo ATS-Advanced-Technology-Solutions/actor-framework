@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_MONITORABLE_ACTOR_HPP
-#define CAF_MONITORABLE_ACTOR_HPP
+#pragma once
 
 #include <set>
 #include <mutex>
@@ -97,13 +96,15 @@ public:
 
   bool remove_backlink(abstract_actor* x) override;
 
+  error fail_state() const;
+
   /// @endcond
 
 protected:
   /// Allows subclasses to add additional cleanup code to the
   /// critical secion in `cleanup`. This member function is
   /// called inside of a critical section.
-  virtual void on_cleanup();
+  virtual void on_cleanup(const error& reason);
 
   /// Sends a response message if `what` is a request.
   void bounce(mailbox_element_ptr& what);
@@ -138,14 +139,8 @@ protected:
   template <class F>
   bool handle_system_message(mailbox_element& x, execution_unit* context,
                              bool trap_exit, F& down_msg_handler) {
-    auto& content = x.content();
-    if (content.type_token() == make_type_token<down_msg>()) {
-      if (content.shared()) {
-        auto vptr = content.copy(0);
-        down_msg_handler(vptr->get_mutable_as<down_msg>());
-      } else {
-        down_msg_handler(content.get_mutable_as<down_msg>(0));
-      }
+    if (x.content().type_token() == make_type_token<down_msg>()) {
+      down_msg_handler(x.content().get_mutable_as<down_msg>(0));
       return true;
     }
     return handle_system_message(x, context, trap_exit);
@@ -166,4 +161,3 @@ protected:
 
 } // namespace caf
 
-#endif // CAF_MONITORABLE_ACTOR_HPP

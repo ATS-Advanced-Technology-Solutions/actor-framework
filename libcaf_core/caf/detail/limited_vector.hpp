@@ -16,17 +16,16 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_LIMITED_VECTOR_HPP
-#define CAF_DETAIL_LIMITED_VECTOR_HPP
+#pragma once
 
 #include <cstddef>
 #include <iterator>
 #include <algorithm>
-#include <stdexcept>
 #include <type_traits>
 #include <initializer_list>
 
 #include "caf/config.hpp"
+#include "caf/raise_error.hpp"
 
 namespace caf {
 namespace detail {
@@ -249,4 +248,3 @@ private:
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_DETAIL_LIMITED_VECTOR_HPP

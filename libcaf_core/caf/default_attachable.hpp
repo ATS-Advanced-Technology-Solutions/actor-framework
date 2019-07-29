@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DEFAULT_ATTACHABLE_HPP
-#define CAF_DEFAULT_ATTACHABLE_HPP
+#pragma once
 
 #include "caf/actor_addr.hpp"
 #include "caf/attachable.hpp"
@@ -41,14 +40,14 @@ public:
 
   bool matches(const token& what) override;
 
-  inline static attachable_ptr make_monitor(actor_addr observed,
-                                            actor_addr observer) {
-    return attachable_ptr{new default_attachable(std::move(observed),
-                                                 std::move(observer), monitor)};
+  static attachable_ptr
+  make_monitor(actor_addr observed, actor_addr observer,
+               message_priority prio = message_priority::normal) {
+    return attachable_ptr{new default_attachable(
+      std::move(observed), std::move(observer), monitor, prio)};
   }
 
-  inline static attachable_ptr make_link(actor_addr observed,
-                                         actor_addr observer) {
+  static attachable_ptr make_link(actor_addr observed, actor_addr observer) {
     return attachable_ptr{new default_attachable(std::move(observed),
                                                  std::move(observer), link)};
   }
@@ -71,13 +70,23 @@ public:
   };
 
 private:
-  default_attachable(actor_addr observed, actor_addr observer, observe_type type);
+  default_attachable(actor_addr observed, actor_addr observer,
+                     observe_type type,
+                     message_priority prio = message_priority::normal);
+
+  /// Holds a weak reference to the observed actor.
   actor_addr observed_;
+
+  /// Holds a weak reference to the observing actor.
   actor_addr observer_;
+
+  /// Defines the type of message we wish to send.
   observe_type type_;
+
+  /// Defines the priority for the message.
+  message_priority priority_;
 };
 
 } // namespace caf
 
 
-#endif // CAF_DEFAULT_ATTACHABLE_HPP

@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_TYPED_EVENT_BASED_ACTOR_HPP
-#define CAF_TYPED_EVENT_BASED_ACTOR_HPP
+#pragma once
 
 #include "caf/replies_to.hpp"
 #include "caf/local_actor.hpp"
@@ -69,16 +68,17 @@ public:
   }
 
   void initialize() override {
+    CAF_LOG_TRACE("");
+    super::initialize();
     this->setf(abstract_actor::is_initialized_flag);
     auto bhvr = make_behavior();
     CAF_LOG_DEBUG_IF(!bhvr, "make_behavior() did not return a behavior:"
-                             << CAF_ARG(this->has_behavior()));
+                            << CAF_ARG2("alive", this->alive()));
     if (bhvr) {
       // make_behavior() did return a behavior instead of using become()
       CAF_LOG_DEBUG("make_behavior() did return a valid behavior");
       this->do_become(std::move(bhvr.unbox()), true);
     }
-    super::initialize();
   }
 
 protected:
@@ -95,4 +95,3 @@ protected:
 
 } // namespace caf
 
-#endif // CAF_TYPED_EVENT_BASED_ACTOR_HPP

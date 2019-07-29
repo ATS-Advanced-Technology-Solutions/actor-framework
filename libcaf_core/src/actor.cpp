@@ -43,10 +43,6 @@ actor::actor(const scoped_actor& x) : ptr_(actor_cast<strong_actor_ptr>(x)) {
   // nop
 }
 
-actor::actor(const unsafe_actor_handle_init_t&) : ptr_(nullptr) {
-  // nop
-}
-
 actor::actor(actor_control_block* ptr) : ptr_(ptr) {
   // nop
 }
@@ -109,7 +105,7 @@ actor actor::splice_impl(std::initializer_list<actor> xs) {
 }
 
 bool operator==(const actor& lhs, abstract_actor* rhs) {
-  return actor_cast<abstract_actor*>(lhs) == rhs;
+  return lhs ? actor_cast<abstract_actor*>(lhs) == rhs : rhs == nullptr;
 }
 
 bool operator==(abstract_actor* lhs, const actor& rhs) {

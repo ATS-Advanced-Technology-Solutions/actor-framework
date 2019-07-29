@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_MEMORY_MANAGED_HPP
-#define CAF_MEMORY_MANAGED_HPP
+#pragma once
 
 namespace caf {
 
@@ -33,7 +32,7 @@ public:
   ///                       reference of this object before calling this member
   ///                       function. This information is important when
   ///                       implementing a type with support for weak pointers.
-  virtual void request_deletion(bool decremented_rc) noexcept;
+  virtual void request_deletion(bool decremented_rc) const noexcept;
 
 protected:
   virtual ~memory_managed();
@@ -41,4 +40,3 @@ protected:
 
 } // namespace caf
 
-#endif // CAF_MEMORY_MANAGED_HPP

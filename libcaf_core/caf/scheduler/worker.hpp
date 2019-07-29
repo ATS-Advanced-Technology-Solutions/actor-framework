@@ -16,16 +16,15 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_SCHEDULER_WORKER_HPP
-#define CAF_SCHEDULER_WORKER_HPP
+#pragma once
 
 #include <cstddef>
 
+#include "caf/detail/double_ended_queue.hpp"
+#include "caf/detail/set_thread_name.hpp"
+#include "caf/execution_unit.hpp"
 #include "caf/logger.hpp"
 #include "caf/resumable.hpp"
-#include "caf/execution_unit.hpp"
-
-#include "caf/detail/double_ended_queue.hpp"
 
 namespace caf {
 namespace scheduler {
@@ -41,12 +40,13 @@ public:
   using coordinator_ptr = coordinator<Policy>*;
   using policy_data = typename Policy::worker_data;
 
-  worker(size_t worker_id, coordinator_ptr worker_parent, size_t throughput)
+  worker(size_t worker_id, coordinator_ptr worker_parent,
+         const policy_data& init, size_t throughput)
       : execution_unit(&worker_parent->system()),
         max_throughput_(throughput),
         id_(worker_id),
         parent_(worker_parent),
-        data_(worker_parent) {
+        data_(init) {
     // nop
   }
 
@@ -54,6 +54,8 @@ public:
     CAF_ASSERT(this_thread_.get_id() == std::thread::id{});
     auto this_worker = this;
     this_thread_ = std::thread{[this_worker] {
+      CAF_SET_LOGGER_SYS(&this_worker->system());
+      detail::set_thread_name("caf.multiplexer");
       this_worker->system().thread_started();
       this_worker->run();
       this_worker->system().thread_terminates();
@@ -157,4 +159,3 @@ private:
 } // namespace scheduler
 } // namespace caf
 
-#endif // CAF_SCHEDULER_WORKER_HPP

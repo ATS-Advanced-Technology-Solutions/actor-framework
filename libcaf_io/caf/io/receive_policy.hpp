@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_RECEIVE_POLICY_HPP
-#define CAF_IO_RECEIVE_POLICY_HPP
+#pragma once
 
 #include <string>
 #include <cstddef>
@@ -28,7 +27,7 @@
 namespace caf {
 namespace io {
 
-enum class receive_policy_flag {
+enum class receive_policy_flag : unsigned {
   at_least,
   at_most,
   exactly
@@ -65,4 +64,3 @@ public:
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_RECEIVE_POLICY_HPP

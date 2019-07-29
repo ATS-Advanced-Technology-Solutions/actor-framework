@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_DYNAMIC_MESSAGE_DATA_HPP
-#define CAF_DETAIL_DYNAMIC_MESSAGE_DATA_HPP
+#pragma once
 
 #include <vector>
 
@@ -46,7 +45,7 @@ public:
 
   // -- overridden observers of message_data -----------------------------------
 
-  cow_ptr copy() const override;
+  dynamic_message_data* copy() const override;
 
   // -- overridden modifiers of type_erased_tuple ------------------------------
 
@@ -85,7 +84,12 @@ private:
   uint32_t type_token_;
 };
 
+void intrusive_ptr_add_ref(const dynamic_message_data*);
+
+void intrusive_ptr_release(const dynamic_message_data*);
+
+dynamic_message_data* intrusive_cow_ptr_unshare(dynamic_message_data*&);
+
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_DETAIL_DYNAMIC_MESSAGE_DATA_HPP

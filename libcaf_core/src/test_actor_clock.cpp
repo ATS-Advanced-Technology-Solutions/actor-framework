@@ -18,42 +18,62 @@
 
 #include "caf/detail/test_actor_clock.hpp"
 
+#include "caf/logger.hpp"
+
 namespace caf {
 namespace detail {
+
+test_actor_clock::test_actor_clock() : current_time(duration_type{1}) {
+  // This ctor makes sure that the clock isn't at the default-constructed
+  // time_point, because that value has special meaning (for the tick_emitter,
+  // for example).
+}
 
 test_actor_clock::time_point test_actor_clock::now() const noexcept {
   return current_time;
 }
 
-bool test_actor_clock::dispatch_once() {
+test_actor_clock::duration_type
+test_actor_clock::difference(atom_value measurement, long units, time_point t0,
+                             time_point t1) const noexcept {
+  auto i = time_per_unit.find(measurement);
+  if (i != time_per_unit.end())
+    return units * i->second;
+  return t0 == t1 ? duration_type{1} : t1 - t0;
+}
+
+bool test_actor_clock::trigger_timeout() {
+  CAF_LOG_TRACE(CAF_ARG2("schedule.size", schedule_.size()));
   if (schedule_.empty())
     return false;
-  visitor f{this};
   auto i = schedule_.begin();
-  visit(f, i->second);
+  auto tout = i->first;
+  if (tout > current_time)
+    current_time = tout;
+  auto ptr = std::move(i->second);
   schedule_.erase(i);
+  auto backlink = ptr->backlink;
+  if (backlink != actor_lookup_.end())
+    actor_lookup_.erase(backlink);
+  ship(*ptr);
   return true;
 }
 
-size_t test_actor_clock::dispatch() {
+size_t test_actor_clock::trigger_timeouts() {
+  CAF_LOG_TRACE(CAF_ARG2("schedule.size", schedule_.size()));
   if (schedule_.empty())
     return 0u;
-  visitor f{this};
-  auto result = schedule_.size();
-  for (auto& kvp : schedule_)
-    visit(f, kvp.second);
-  schedule_.clear();
+  size_t result = 0;
+  while (trigger_timeout())
+    ++result;
   return result;
 }
 
-void test_actor_clock::advance_time(duration_type x) {
-  visitor f{this};
+size_t test_actor_clock::advance_time(duration_type x) {
+  CAF_LOG_TRACE(CAF_ARG(x) << CAF_ARG2("schedule.size", schedule_.size()));
+  CAF_ASSERT(x.count() >= 0);
   current_time += x;
-  auto i = schedule_.begin();
-  while (i != schedule_.end() && i->first <= current_time) {
-    visit(f, i->second);
-    i = schedule_.erase(i);
-  }
+  return trigger_expired_timeouts();
 }
 
 } // namespace detail

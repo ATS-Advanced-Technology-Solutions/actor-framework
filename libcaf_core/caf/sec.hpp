@@ -18,19 +18,20 @@
 
 // This file is partially included in the manual, do not modify
 // without updating the references in the *.tex files!
-// Manual references: lines 32-93 (Error.tex)
+// Manual references: lines 32-117 (Error.tex)
 
-#ifndef CAF_SEC_HPP
-#define CAF_SEC_HPP
+#pragma once
 
 #include "caf/error.hpp"
 #include "caf/make_message.hpp"
 
 namespace caf {
 
-/// SEC stands for "System Error Code". This enum contains
-/// error codes used internally by CAF.
+/// SEC stands for "System Error Code". This enum contains error codes for
+/// ::actor_system and its modules.
 enum class sec : uint8_t {
+  /// No error.
+  none = 0,
   /// Indicates that an actor dropped an unexpected message.
   unexpected_message = 1,
   /// Indicates that a response message did not match the provided handler.
@@ -113,6 +114,16 @@ enum class sec : uint8_t {
   bad_function_call = 40,
   /// Feature is disabled in the actor system config.
   feature_disabled,
+  /// Failed to open file.
+  cannot_open_file,
+  /// A socket descriptor argument is invalid.
+  socket_invalid,
+  /// A socket became disconnected from the remote host (hang up).
+  socket_disconnected,
+  /// An operation on a socket (e.g. `poll`) failed.
+  socket_operation_failed = 45,
+  /// A resource is temporarily unavailable or would block.
+  unavailable_or_would_block,
 };
 
 /// @relates sec
@@ -130,4 +141,3 @@ error make_error(sec code, T&& x, Ts&&... xs) {
 
 } // namespace caf
 
-#endif // CAF_SEC_HPP

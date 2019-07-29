@@ -16,25 +16,28 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_TEST_UNIT_TEST_HPP
-#define CAF_TEST_UNIT_TEST_HPP
+#pragma once
 
-#include <map>
 #include <cmath>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <memory>
 #include <mutex>
+#include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
-#include <string>
-#include <memory>
-#include <fstream>
-#include <sstream>
-#include <iostream>
 
+#include "caf/deep_to_string.hpp"
 #include "caf/fwd.hpp"
-#include "caf/term.hpp"
 #include "caf/logger.hpp"
 #include "caf/optional.hpp"
-#include "caf/deep_to_string.hpp"
+#include "caf/term.hpp"
+#include "caf/variant.hpp"
+
+#include "caf/detail/arg_wrapper.hpp"
+#include "caf/detail/type_traits.hpp"
 
 namespace caf {
 namespace test {
@@ -50,12 +53,28 @@ struct negated {
   }
 };
 
-struct equal_to {
+template <class T, class Comparator>
+struct compare_visitor {
+  const T& rhs;
+
+  template <class U>
+  bool operator()(const U& lhs) const {
+    Comparator f;
+    return f(lhs, rhs);
+  }
+};
+
+struct equality_operator {
+  static constexpr bool default_value = false;
+
   template <class T, class U,
-            typename std::enable_if<std::is_floating_point<T>::value
-                                    || std::is_floating_point<U>::value,
-                                    int>::type = 0>
-  bool operator()(const T& t, const U& u) {
+            detail::enable_if_t<((std::is_floating_point<T>::value
+                                  && std::is_convertible<U, double>::value)
+                                 || (std::is_floating_point<U>::value
+                                     && std::is_convertible<T, double>::value))
+                                  && detail::is_comparable<T, U>::value,
+                                int> = 0>
+  bool operator()(const T& t, const U& u) const {
     auto x = static_cast<long double>(t);
     auto y = static_cast<long double>(u);
     auto max = std::max(std::abs(x), std::abs(y));
@@ -64,22 +83,110 @@ struct equal_to {
   }
 
   template <class T, class U,
-            typename std::enable_if<!std::is_floating_point<T>::value
-                                    && !std::is_floating_point<U>::value,
-                                    int>::type = 0>
-  bool operator()(const T& x, const U& y) {
+            detail::enable_if_t<!((std::is_floating_point<T>::value
+                                   && std::is_convertible<U, double>::value)
+                                  || (std::is_floating_point<U>::value
+                                      && std::is_convertible<T, double>::value))
+                                  && detail::is_comparable<T, U>::value,
+                                int> = 0>
+  bool operator()(const T& x, const U& y) const {
     return x == y;
+  }
+
+  template <class T, class U,
+            typename std::enable_if<!detail::is_comparable<T, U>::value,
+                                    int>::type = 0>
+  bool operator()(const T&, const U&) const {
+    return default_value;
   }
 };
 
-// note: we could use negated<equal_to>, but that would give us `!(x == y)`
-// instead of `x != y` and thus messes with coverage testing
-struct not_equal_to {
-  template <class T, class U>
-  bool operator()(const T& x, const U& y) {
+struct inequality_operator {
+  static constexpr bool default_value = true;
+
+  template <class T, class U,
+            typename std::enable_if<(std::is_floating_point<T>::value
+                                     || std::is_floating_point<U>::value)
+                                    && detail::is_comparable<T, U>::value,
+                                    int>::type = 0>
+  bool operator()(const T& x, const U& y) const {
+    equality_operator f;
+    return !f(x, y);
+  }
+
+  template <class T, class U,
+            typename std::enable_if<!std::is_floating_point<T>::value
+                                    && !std::is_floating_point<U>::value
+                                    && detail::is_comparable<T, U>::value,
+                                    int>::type = 0>
+  bool operator()(const T& x, const U& y) const {
     return x != y;
   }
+
+  template <class T, class U,
+            typename std::enable_if<!detail::is_comparable<T, U>::value,
+                                    int>::type = 0>
+  bool operator()(const T&, const U&) const {
+    return default_value;
+  }
 };
+
+template <class F, class T>
+struct comparison_unbox_helper {
+  const F& f;
+  const T& rhs;
+
+  template <class U>
+  bool operator()(const U& lhs) const {
+    return f(lhs, rhs);
+  }
+};
+
+template <class Operator>
+class comparison {
+public:
+  // -- default case -----------------------------------------------------------
+
+  template <class T, class U>
+  bool operator()(const T& x, const U& y) const {
+    std::integral_constant<bool, SumType<T>()> lhs_is_sum_type;
+    std::integral_constant<bool, SumType<U>()> rhs_is_sum_type;
+    return cmp(x, y, lhs_is_sum_type, rhs_is_sum_type);
+  }
+
+private:
+  // -- automagic unboxing of sum types ----------------------------------------
+
+  template <class T, class U>
+  bool cmp(const T& x, const U& y, std::false_type, std::false_type) const {
+    Operator f;
+    return f(x, y);
+  }
+
+  template <class T, class U>
+  bool cmp(const T& x, const U& y, std::true_type, std::false_type) const {
+    Operator f;
+    auto inner_x = caf::get_if<U>(&x);
+    return inner_x ? f(*inner_x, y) : Operator::default_value;
+  }
+
+  template <class T, class U>
+  bool cmp(const T& x, const U& y, std::false_type, std::true_type) const {
+    Operator f;
+    auto inner_y = caf::get_if<T>(&y);
+    return inner_y ? f(x, *inner_y) : Operator::default_value;
+  }
+
+  template <class T, class U>
+  bool cmp(const T& x, const U& y, std::true_type, std::true_type) const {
+    comparison_unbox_helper<comparison, U> f{*this, y};
+    return visit(f, x);
+  }
+};
+
+using equal_to = comparison<equality_operator>;
+
+using not_equal_to = comparison<inequality_operator>;
 
 struct less_than {
   template <class T, class U>
@@ -121,7 +228,7 @@ int main(int argc, char** argv);
 /// A sequence of *checks*.
 class test {
 public:
-  test(std::string test_name);
+  test(std::string test_name, bool disabled_by_default);
 
   virtual ~test();
 
@@ -141,13 +248,18 @@ public:
     return bad_;
   }
 
-  virtual void run() = 0;
+  inline bool disabled() const noexcept {
+    return disabled_;
+  }
+
+  virtual void run_test_impl() = 0;
 
 private:
   size_t expected_failures_;
   std::string name_;
   size_t good_;
   size_t bad_;
+  bool disabled_;
 };
 
 struct dummy_fixture { };
@@ -155,13 +267,14 @@ struct dummy_fixture { };
 template <class T>
 class test_impl : public test {
 public:
-  test_impl(std::string test_name) : test(std::move(test_name)) {
+  test_impl(std::string test_name, bool disabled_by_default)
+      : test(std::move(test_name), disabled_by_default) {
     // nop
   }
 
-  void run() override {
+  void run_test_impl() override {
     T impl;
-    impl.run();
+    impl.run_test_impl();
   }
 };
 
@@ -193,12 +306,29 @@ public:
 
   template <class T>
   void log(level lvl, const T& x) {
-    if (lvl <= level_console_) {
-      *console_ << x;
-    }
-    if (lvl <= level_file_) {
-      file_ << x;
-    }
+    struct simple_fwd_t {
+      const T& operator()(const T& y) const {
+        return y;
+      }
+    };
+    using fwd =
+      typename std::conditional<
+        std::is_same<char, T>::value
+        || std::is_convertible<T, std::string>::value
+        || std::is_same<caf::term, T>::value,
+        simple_fwd_t,
+        deep_to_string_t
+      >::type;
+    fwd f;
+    auto y = f(x);
+    if (lvl <= level_console_)
+      *console_ << y;
+    if (lvl <= level_file_)
+      file_ << y;
+  }
+
+  inline void log(level lvl, const std::nullptr_t&) {
+    log(lvl, "null");
   }
 
   /// Output stream for logging purposes.
@@ -208,17 +338,16 @@ public:
 
     stream(const stream&) = default;
 
-    template <class T>
-    stream& operator<<(const T& x) {
-      parent_.log(lvl_, x);
+    struct reset_flags_t {};
+
+    stream& operator<<(reset_flags_t) {
       return *this;
     }
 
     template <class T>
-    stream& operator<<(const optional<T>& x) {
-      if (!x)
-        return *this << "-none-";
-      return *this << *x;
+    stream& operator<<(const T& x) {
+      parent_.log(lvl_, x);
+      return *this;
     }
 
   private:
@@ -333,50 +462,10 @@ namespace detail {
 
 template <class T>
 struct adder {
-  adder(const char* suite_name, const char* test_name) {
-    engine::add(suite_name, std::unique_ptr<T>{new T(test_name)});
+  adder(const char* suite_name, const char* test_name, bool disabled) {
+    engine::add(suite_name, std::unique_ptr<T>{new T(test_name, disabled)});
   }
 };
-
-template <class T>
-struct showable_base {
-  explicit showable_base(const T& x) : value(x) {
-    // nop
-  }
-
-  const T& value;
-};
-
-// showable_base<T> picks up to_string() via ADL
-template <class T>
-std::ostream& operator<<(std::ostream& out, const showable_base<T>& x) {
-  auto str = caf::deep_to_string(x.value);
-  if (str == "<unprintable>")
-    out << term::blue << "<unprintable>" << term::reset;
-  else
-    out << str;
-  return out;
-}
-
-template <class T>
-class showable : public showable_base<T> {
-public:
-  explicit showable(const T& x) : showable_base<T>(x) {
-    // nop
-  }
-};
-
-// showable<T> picks up custom operator<< overloads for std::ostream
-template <class T>
-auto operator<<(std::ostream& out, const showable<T>& p)
--> decltype(out << std::declval<const T&>()) {
-  return out << p.value;
-}
-
-template <class T>
-showable<T> show(const T &x) {
-  return showable<T>{x};
-}
 
 bool check(test* parent, const char *file, size_t line,
            const char *expr, bool should_fail, bool result);
@@ -397,8 +486,8 @@ bool check(test* parent, const char *file, size_t line,
         << term::blue << file << term::yellow << ":"
         << term::blue << line << fill(line) << term::reset
         << expr << term::magenta << " ("
-        << term::red << show(x) << term::magenta
-        << " !! " << term::red << show(y) << term::magenta
+        << term::red << x << term::magenta
+        << " !! " << term::red << y << term::magenta
         << ')' << term::reset_endl;
     parent->fail(should_fail);
   }
@@ -414,8 +503,9 @@ using caf_test_case_auto_fixture = caf::test::dummy_fixture;
 
 #define CAF_TEST_PRINT(level, msg, colorcode)                                  \
   (::caf::test::logger::instance().level()                                     \
-   << ::caf::term:: colorcode << "  -> " << ::caf::term::reset << msg          \
-   << " [line " << __LINE__ << "]\n")
+   << ::caf::term::colorcode << "  -> " << ::caf::term::reset                  \
+   << ::caf::test::logger::stream::reset_flags_t{} << msg << " [line "         \
+   << __LINE__ << "]\n")
 
 #define CAF_TEST_PRINT_ERROR(msg)   CAF_TEST_PRINT(info, msg, red)
 #define CAF_TEST_PRINT_INFO(msg)    CAF_TEST_PRINT(info, msg, yellow)
@@ -457,8 +547,8 @@ using caf_test_case_auto_fixture = caf::test::dummy_fixture;
 #define CAF_CHECK_FUNC(func, x_expr, y_expr)                                   \
   do {                                                                         \
     func comparator;                                                           \
-    const auto& x_val___ = x_expr;                                             \
-    const auto& y_val___ = y_expr;                                             \
+    auto&& x_val___ = x_expr;                                                  \
+    auto&& y_val___ = y_expr;                                                  \
     static_cast<void>(::caf::test::detail::check(                              \
       ::caf::test::engine::current_test(), __FILE__, __LINE__,                 \
       CAF_FUNC_EXPR(func, x_expr, y_expr), false,                              \
@@ -497,8 +587,8 @@ using caf_test_case_auto_fixture = caf::test::dummy_fixture;
 #define CAF_REQUIRE_FUNC(func, x_expr, y_expr)                                 \
   do {                                                                         \
     func comparator;                                                           \
-    const auto& x_val___ = x_expr;                                             \
-    const auto& y_val___ = y_expr;                                             \
+    auto&& x_val___ = x_expr;                                                  \
+    auto&& y_val___ = y_expr;                                                  \
     auto CAF_UNIQUE(__result) = ::caf::test::detail::check(                    \
       ::caf::test::engine::current_test(), __FILE__, __LINE__,                 \
       CAF_FUNC_EXPR(func, x_expr, y_expr), false,                              \
@@ -510,15 +600,19 @@ using caf_test_case_auto_fixture = caf::test::dummy_fixture;
     ::caf::test::engine::last_check_line(__LINE__);                            \
   } while (false)
 
-#define CAF_TEST(name)                                                         \
+#define CAF_TEST_IMPL(name, disabled_by_default)                               \
   namespace {                                                                  \
   struct CAF_UNIQUE(test) : caf_test_case_auto_fixture {                       \
-    void run();                                                                \
+    void run_test_impl();                                                      \
   };                                                                           \
-  ::caf::test::detail::adder< ::caf::test::test_impl<CAF_UNIQUE(test)>>        \
-  CAF_UNIQUE(a) {CAF_XSTR(CAF_SUITE), CAF_XSTR(name)};                         \
+  ::caf::test::detail::adder<::caf::test::test_impl<CAF_UNIQUE(test)>>         \
+    CAF_UNIQUE(a){CAF_XSTR(CAF_SUITE), CAF_XSTR(name), disabled_by_default};   \
   } /* namespace <anonymous> */                                                \
-  void CAF_UNIQUE(test)::run()
+  void CAF_UNIQUE(test)::run_test_impl()
+
+#define CAF_TEST(name) CAF_TEST_IMPL(name, false)
+
+#define CAF_TEST_DISABLED(name) CAF_TEST_IMPL(name, true)
 
 #define CAF_TEST_FIXTURE_SCOPE(scope_name, fixture_name)                       \
   namespace scope_name { using caf_test_case_auto_fixture = fixture_name ;
@@ -529,8 +623,10 @@ using caf_test_case_auto_fixture = caf::test::dummy_fixture;
 // -- Convenience macros -------------------------------------------------------
 
 #define CAF_MESSAGE(msg)                                                       \
-  CAF_LOG_INFO(msg);                                                           \
-  CAF_TEST_PRINT_VERBOSE(msg)
+  do {                                                                         \
+    CAF_LOG_INFO(msg);                                                         \
+    CAF_TEST_PRINT_VERBOSE(msg);                                               \
+  } while (false)
 
 // -- CAF_CHECK* predicate family ----------------------------------------------
 
@@ -597,4 +693,3 @@ using caf_test_case_auto_fixture = caf::test::dummy_fixture;
   CAF_REQUIRE_FUNC(::caf::test::negated<::caf::test::greater_than_or_equal>,   \
                    x, y)
 
-#endif // CAF_TEST_UNIT_TEST_HPP

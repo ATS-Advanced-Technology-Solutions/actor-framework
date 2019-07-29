@@ -43,16 +43,21 @@ abstract_broker* manager::parent() {
 }
 
 void manager::detach(execution_unit*, bool invoke_disconnect_message) {
-  CAF_LOG_TRACE("");
+  CAF_LOG_TRACE(CAF_ARG(invoke_disconnect_message));
+  // This function gets called from the multiplexer when an error occurs or
+  // from the broker when closing this manager. In both cases, we need to make
+  // sure this manager does not receive further socket events.
+  remove_from_loop();
+  // Disconnect from the broker if not already detached.
   if (!detached()) {
     CAF_LOG_DEBUG("disconnect servant from broker");
     auto raw_ptr = parent();
-    // keep the strong reference until we go out of scope
+    // Keep a strong reference to our parent until we go out of scope.
     strong_actor_ptr ptr;
     ptr.swap(parent_);
     detach_from(raw_ptr);
     if (invoke_disconnect_message) {
-      auto mptr = make_mailbox_element(nullptr, invalid_message_id,
+      auto mptr = make_mailbox_element(nullptr, make_message_id(),
                                        {}, detach_message());
       switch (raw_ptr->consume(*mptr)) {
         case im_success:
@@ -67,6 +72,12 @@ void manager::detach(execution_unit*, bool invoke_disconnect_message) {
       }
     }
   }
+}
+
+void manager::io_failure(execution_unit* ctx, operation op) {
+  CAF_LOG_TRACE(CAF_ARG(op));
+  CAF_IGNORE_UNUSED(op);
+  detach(ctx, true);
 }
 
 } // namespace network

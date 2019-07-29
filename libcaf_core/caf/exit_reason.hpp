@@ -18,10 +18,9 @@
 
 // This file is partially included in the manual, do not modify
 // without updating the references in the *.tex files!
-// Manual references: lines 31-51 (Error.tex)
+// Manual references: lines 29-49 (Error.tex)
 
-#ifndef CAF_EXIT_REASON_HPP
-#define CAF_EXIT_REASON_HPP
+#pragma once
 
 #include "caf/error.hpp"
 
@@ -57,4 +56,3 @@ error make_error(exit_reason);
 
 } // namespace caf
 
-#endif // CAF_EXIT_REASON_HPP

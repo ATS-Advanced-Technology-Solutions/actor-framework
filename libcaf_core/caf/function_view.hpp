@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_FUNCTION_VIEW_HPP
-#define CAF_FUNCTION_VIEW_HPP
+#pragma once
 
 #include <new>
 #include <functional>
@@ -123,7 +122,7 @@ struct function_view_result {
 
 template <class... Ts>
 struct function_view_result<typed_actor<Ts...>> {
-  typed_actor<Ts...> value{unsafe_actor_handle_init};
+  typed_actor<Ts...> value{nullptr};
 };
 
 /// A function view for an actor hides any messaging from the caller.
@@ -271,4 +270,3 @@ function_view<T> make_function_view(const T& x, duration t = infinite) {
 
 } // namespace caf
 
-#endif // CAF_FUNCTION_VIEW_HPP

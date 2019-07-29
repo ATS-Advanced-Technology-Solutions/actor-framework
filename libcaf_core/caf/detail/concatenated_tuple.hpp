@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_CONCATENATED_TUPLE_HPP
-#define CAF_DETAIL_CONCATENATED_TUPLE_HPP
+#pragma once
 
 #include <vector>
 #include <algorithm>
@@ -47,7 +46,7 @@ public:
 
   // -- overridden observers of message_data -----------------------------------
 
-  cow_ptr copy() const override;
+  concatenated_tuple* copy() const override;
 
   // -- overridden modifiers of type_erased_tuple ------------------------------
 
@@ -71,9 +70,11 @@ public:
 
   error save(size_t pos, serializer& sink) const override;
 
-  // -- observers --------------------------------------------------------------
+  // -- element access ---------------------------------------------------------
 
-  std::pair<message_data*, size_t> select(size_t pos) const;
+  std::pair<message_data*, size_t> select(size_t pos);
+
+  std::pair<const message_data*, size_t> select(size_t pos) const;
 
 private:
   // -- data members -----------------------------------------------------------
@@ -86,5 +87,4 @@ private:
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_DETAIL_CONCATENATED_TUPLE_HPP
 

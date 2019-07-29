@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_DATAGRAM_SERVANT_HPP
-#define CAF_IO_DATAGRAM_SERVANT_HPP
+#pragma once
 
 #include <vector>
 
@@ -73,8 +72,6 @@ public:
 
   virtual void remove_endpoint(datagram_handle hdl) = 0;
 
-  void io_failure(execution_unit* ctx, network::operation op) override;
-
   bool consume(execution_unit*, datagram_handle hdl,
                network::receive_buffer& buf) override;
 
@@ -100,4 +97,3 @@ using datagram_servant_ptr = intrusive_ptr<datagram_servant>;
 // to the BASP broker.
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(caf::io::datagram_servant_ptr)
 
-#endif // CAF_IO_DATAGRAM_SERVANT_HPP

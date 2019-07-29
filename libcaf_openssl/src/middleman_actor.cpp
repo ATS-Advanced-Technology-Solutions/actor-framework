@@ -36,9 +36,19 @@
 #include "caf/io/middleman_actor_impl.hpp"
 
 #include "caf/io/network/interfaces.hpp"
+#include "caf/io/network/stream_impl.hpp"
+#include "caf/io/network/doorman_impl.hpp"
 #include "caf/io/network/default_multiplexer.hpp"
 
 #include "caf/openssl/session.hpp"
+
+#ifdef CAF_WINDOWS
+# include <winsock2.h>
+# include <ws2tcpip.h> // socket_size_type, etc. (MSVC20xx)
+#else
+# include <sys/types.h>
+# include <sys/socket.h>
+#endif
 
 namespace caf {
 namespace openssl {
@@ -68,15 +78,23 @@ struct ssl_policy {
     CAF_LOG_TRACE(CAF_ARG(fd));
     sockaddr_storage addr;
     memset(&addr, 0, sizeof(addr));
-    socklen_t addrlen = sizeof(addr);
+    caf::io::network::socket_size_type addrlen = sizeof(addr);
     result = accept(fd, reinterpret_cast<sockaddr*>(&addr), &addrlen);
-    CAF_LOG_DEBUG(CAF_ARG(fd) << CAF_ARG(result));
+    // note accept4 is better to avoid races in setting CLOEXEC (but not posix)
     if (result == io::network::invalid_native_socket) {
       auto err = io::network::last_socket_error();
       if (!io::network::would_block_or_temporarily_unavailable(err))
+        CAF_LOG_ERROR("accept failed:"
+                      << io::network::socket_error_as_string(err));
         return false;
     }
+    io::network::child_process_inherit(result, false);
+    CAF_LOG_DEBUG(CAF_ARG(fd) << CAF_ARG(result));
     return session_->try_accept(result);
+  }
+
+  bool must_read_more(native_socket fd, size_t threshold) {
+    return session_->must_read_more(fd, threshold);
   }
 
 private:
@@ -93,7 +111,7 @@ class scribe_impl : public io::scribe {
       // nop
     }
 
-    ~scribe_impl() {
+    ~scribe_impl() override {
       CAF_LOG_TRACE("");
     }
 
@@ -117,9 +135,9 @@ class scribe_impl : public io::scribe {
       return stream_.rd_buf();
     }
 
-    void stop_reading() override {
+    void graceful_shutdown() override {
       CAF_LOG_TRACE("");
-      stream_.stop_reading();
+      stream_.graceful_shutdown();
       detach(&stream_.backend(), false);
     }
 
@@ -214,7 +232,7 @@ protected:
                                    uint16_t port) override {
     CAF_LOG_TRACE(CAF_ARG(host) << CAF_ARG(port));
     auto fd = io::network::new_tcp_connection(host, port);
-    if (fd == io::network::invalid_native_socket)
+    if (!fd)
       return std::move(fd.error());
     io::network::nonblocking(*fd, true);
     auto sssn = make_session(system(), *fd, false);
@@ -231,7 +249,7 @@ protected:
                                  bool reuse) override {
     CAF_LOG_TRACE(CAF_ARG(port) << CAF_ARG(reuse));
     auto fd = io::network::new_tcp_acceptor_impl(port, addr, reuse);
-    if (fd == io::network::invalid_native_socket)
+    if (!fd)
       return std::move(fd.error());
     return make_counted<doorman_impl>(mpx(), *fd);
   }
@@ -245,7 +263,7 @@ private:
 } // namespace <anonymous>
 
 io::middleman_actor make_middleman_actor(actor_system& sys, actor db) {
-  return sys.config().middleman_detach_utility_actors
+  return !get_or(sys.config(), "middleman.attach-utility-actors", false)
          ? sys.spawn<middleman_actor_impl, detached + hidden>(std::move(db))
          : sys.spawn<middleman_actor_impl, hidden>(std::move(db));
 }

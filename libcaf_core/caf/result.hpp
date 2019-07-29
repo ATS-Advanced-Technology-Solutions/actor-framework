@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_RESULT_HPP
-#define CAF_RESULT_HPP
+#pragma once
 
 #include "caf/fwd.hpp"
 #include "caf/none.hpp"
@@ -126,12 +125,11 @@ public:
   }
 
   result(expected<void> x) {
-    if (x) {
-      flag = rt_value;
-    } else {
-      flag = rt_error;
-      err = std::move(x.error());
-    }
+    init(x);
+  }
+
+  result(expected<unit_t> x) {
+    init(x);
   }
 
   result(skip_t) : flag(rt_skip) {
@@ -142,7 +140,15 @@ public:
     // nop
   }
 
+  result(delegated<unit_t>) : flag(rt_delegated) {
+    // nop
+  }
+
   result(const typed_response_promise<void>&) : flag(rt_delegated) {
+    // nop
+  }
+
+  result(const typed_response_promise<unit_t>&) : flag(rt_delegated) {
     // nop
   }
 
@@ -153,6 +159,17 @@ public:
   result_runtime_type flag;
   message value;
   error err;
+
+private:
+  template <class T>
+  void init(T& x) {
+    if (x) {
+      flag = rt_value;
+    } else {
+      flag = rt_error;
+      err = std::move(x.error());
+    }
+  }
 };
 
 template <>
@@ -171,4 +188,3 @@ struct is_result<result<Ts...>> : std::true_type {};
 
 } // namespace caf
 
-#endif // CAF_RESULT_HPP

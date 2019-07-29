@@ -16,10 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_TEST_COORDINATOR_HPP
-#define CAF_TEST_COORDINATOR_HPP
-
-#include "caf/config.hpp"
+#pragma once
 
 #include <deque>
 #include <chrono>
@@ -27,10 +24,11 @@
 #include <cstddef>
 #include <algorithm>
 
+#include "caf/config.hpp"
+#include "caf/detail/test_actor_clock.hpp"
+#include "caf/raise_error.hpp"
 #include "caf/scheduled_actor.hpp"
 #include "caf/scheduler/abstract_coordinator.hpp"
-
-#include "caf/detail/test_actor_clock.hpp"
 
 namespace caf {
 namespace scheduler {
@@ -40,13 +38,13 @@ class test_coordinator : public abstract_coordinator {
 public:
   using super = abstract_coordinator;
 
+  /// A type-erased boolean predicate.
+  using bool_predicate = std::function<bool()>;
+
   test_coordinator(actor_system& sys);
 
   /// A double-ended queue representing our current job queue.
   std::deque<resumable*> jobs;
-
-  /// A clock type using the highest available precision.
-  using hrc = std::chrono::high_resolution_clock;
 
   /// Returns whether at least one job is in the queue.
   inline bool has_job() const {
@@ -88,7 +86,24 @@ public:
       return true;
     std::rotate(b, i, i + 1);
     return true;
+  }
 
+  /// Runs all jobs that satisfy the predicate.
+  template <class Predicate>
+  size_t run_jobs_filtered(Predicate predicate) {
+    size_t result = 0;
+    while (!jobs.empty()) {
+      auto b = jobs.begin();
+      auto e = jobs.end();
+      auto i = std::find_if(b, e, predicate);
+      if (i == e)
+        return result;
+      if (i != b)
+        std::rotate(b, i, i + 1);
+      run_once();
+      ++result;
+    }
+    return result;
   }
 
   /// Tries to execute a single event in FIFO order.
@@ -107,16 +122,25 @@ public:
   /// left. Returns the number of processed events.
   size_t run(size_t max_count = std::numeric_limits<size_t>::max());
 
-  /// Tries to dispatch a single delayed message.
-  bool dispatch_once();
+  /// Returns whether at least one pending timeout exists.
+  bool has_pending_timeout() const {
+    return clock_.has_pending_timeout();
+  }
 
-  /// Dispatches all pending delayed messages. Returns the number of dispatched
-  /// messages.
-  size_t dispatch();
+  /// Tries to trigger a single timeout.
+  bool trigger_timeout() {
+    return clock_.trigger_timeout();
+  }
 
-  /// Loops until no job or delayed message remains. Returns the total number of
-  /// events (first) and dispatched delayed messages (second).
-  std::pair<size_t, size_t> run_dispatch_loop();
+  /// Triggers all pending timeouts.
+  size_t trigger_timeouts() {
+    return clock_.trigger_timeouts();
+  }
+
+  /// Advances simulation time and returns the number of triggered timeouts.
+  size_t advance_time(timespan x) {
+    return clock_.advance_time(x);
+  }
 
   template <class F>
   void after_next_enqueue(F f) {
@@ -154,6 +178,3 @@ private:
 
 } // namespace scheduler
 } // namespace caf
-
-#endif // CAF_TEST_COORDINATOR_HPP
-

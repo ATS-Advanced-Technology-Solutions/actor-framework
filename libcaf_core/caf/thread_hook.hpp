@@ -16,17 +16,16 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_THREAD_HOOK_HPP
-#define CAF_THREAD_HOOK_HPP
+#pragma once
+
+#include "caf/fwd.hpp"
 
 namespace caf {
 
 /// Interface to define thread hooks.
 class thread_hook {
 public:
-  virtual ~thread_hook() {
-    // nop
-  }
+  virtual ~thread_hook();
 
   /// Called by the actor system once before starting any threads.
   virtual void init(actor_system&) = 0;
@@ -44,4 +43,3 @@ public:
 
 } // namespace caf
 
-#endif // CAF_THREAD_HOOK_HPP

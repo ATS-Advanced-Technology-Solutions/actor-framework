@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_FWD_HPP
-#define CAF_IO_FWD_HPP
+#pragma once
 
 namespace caf {
 
@@ -54,10 +53,10 @@ using datagram_servant_ptr = intrusive_ptr<datagram_servant>;
 namespace network {
 
 class multiplexer;
+class default_multiplexer;
 
 } // namespace network
 
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_FWD_HPP

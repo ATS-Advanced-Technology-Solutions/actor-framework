@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_OPENCL_COMMAND_HPP
-#define CAF_OPENCL_COMMAND_HPP
+#pragma once
 
 #include <tuple>
 #include <vector>
@@ -25,20 +24,19 @@
 #include <algorithm>
 #include <functional>
 
-#include "caf/logger.hpp"
-#include "caf/actor_cast.hpp"
 #include "caf/abstract_actor.hpp"
+#include "caf/actor_cast.hpp"
+#include "caf/logger.hpp"
+#include "caf/raise_error.hpp"
 #include "caf/response_promise.hpp"
 
+#include "caf/detail/raw_ptr.hpp"
 #include "caf/detail/scope_guard.hpp"
 
 #include "caf/opencl/global.hpp"
 #include "caf/opencl/nd_range.hpp"
 #include "caf/opencl/arguments.hpp"
 #include "caf/opencl/opencl_err.hpp"
-
-#include "caf/opencl/detail/core.hpp"
-#include "caf/opencl/detail/raw_ptr.hpp"
 
 namespace caf {
 namespace opencl {
@@ -197,7 +195,7 @@ private:
                                    events.data(), &events.back());
     if (err != CL_SUCCESS) {
       this->deref(); // failed to enqueue command
-      CAF_RAISE_ERROR("clEnqueueReadBuffer: " + opencl_error(err));
+      CAF_RAISE_ERROR("failed to enqueue command");
     }
     pos += 1;
   }
@@ -257,4 +255,3 @@ private:
 } // namespace opencl
 } // namespace caf
 
-#endif // CAF_OPENCL_COMMAND_HPP

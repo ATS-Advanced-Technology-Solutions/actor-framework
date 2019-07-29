@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_OPENCL_ACTOR_FACADE_HPP
-#define CAF_OPENCL_ACTOR_FACADE_HPP
+#pragma once
 
 #include <ostream>
 #include <iostream>
@@ -27,7 +26,10 @@
 #include "caf/all.hpp"
 
 #include "caf/intrusive_ptr.hpp"
+#include "caf/raise_error.hpp"
 
+#include "caf/detail/raw_ptr.hpp"
+#include "caf/detail/command_helper.hpp"
 #include "caf/detail/limited_vector.hpp"
 
 #include "caf/opencl/global.hpp"
@@ -37,10 +39,6 @@
 #include "caf/opencl/nd_range.hpp"
 #include "caf/opencl/arguments.hpp"
 #include "caf/opencl/opencl_err.hpp"
-
-#include "caf/opencl/detail/core.hpp"
-#include "caf/opencl/detail/raw_ptr.hpp"
-#include "caf/opencl/detail/command_helper.hpp"
 
 namespace caf {
 namespace opencl {
@@ -87,20 +85,14 @@ public:
                       const char* kernel_name, const nd_range& range,
                       input_mapping map_args, output_mapping map_result,
                       Ts&&... xs) {
-    if (range.dimensions().empty()) {
-      auto str = "OpenCL kernel needs at least 1 global dimension.";
-      CAF_RAISE_ERROR(str);
-    }
-    auto check_vec = [&](const dim_vec& vec, const char* name) {
-      if (! vec.empty() && vec.size() != range.dimensions().size()) {
-        std::ostringstream oss;
-        oss << name << " vector is not empty, but "
-            << "its size differs from global dimensions vector's size";
-        CAF_RAISE_ERROR(oss.str());
-      }
+    if (range.dimensions().empty())
+      CAF_RAISE_ERROR("OpenCL kernel needs at least 1 global dimension");
+    auto check_vec = [&](const dim_vec& vec) {
+      if (!vec.empty() && vec.size() != range.dimensions().size())
+        CAF_RAISE_ERROR("illegal vector size");
     };
-    check_vec(range.offsets(), "offsets");
-    check_vec(range.local_dimensions(), "local dimensions");
+    check_vec(range.offsets());
+    check_vec(range.local_dimensions());
     auto& sys = actor_conf.host->system();
     auto itr = prog->available_kernels_.find(kernel_name);
     if (itr == prog->available_kernels_.end()) {
@@ -474,4 +466,3 @@ public:
 } // namespace opencl
 } // namespace caf
 
-#endif // CAF_OPENCL_ACTOR_FACADE_HPP

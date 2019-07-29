@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DATA_PROCESSOR_HPP
-#define CAF_DATA_PROCESSOR_HPP
+#pragma once
 
 #include <chrono>
 #include <string>
@@ -74,24 +73,6 @@ public:
       std::u32string
     >;
 
-  /// List of builtin types for data processors as enum.
-  enum builtin {
-    i8_v,
-    u8_v,
-    i16_v,
-    u16_v,
-    i32_v,
-    u32_v,
-    i64_v,
-    u64_v,
-    float_v,
-    double_v,
-    ldouble_v,
-    string8_v,
-    string16_v,
-    string32_v
-  };
-
   // -- constructors, destructors, and assignment operators --------------------
 
   data_processor(const data_processor&) = delete;
@@ -138,7 +119,7 @@ public:
   apply(T& x) {
     static constexpr auto tlindex = detail::tl_index_of<builtin_t, T>::value;
     static_assert(tlindex >= 0, "T not recognized as builtin type");
-    return apply_builtin(static_cast<builtin>(tlindex), &x);
+    return apply_impl(x);
   }
 
   template <class T>
@@ -148,25 +129,21 @@ public:
     error
   >::type
   apply(T& x) {
-    using type =
-      typename detail::select_integer_type<
-        static_cast<int>(sizeof(T)) * (std::is_signed<T>::value ? -1 : 1)
-      >::type;
-    static constexpr auto tlindex = detail::tl_index_of<builtin_t, type>::value;
-    static_assert(tlindex >= 0, "T not recognized as builtin type");
-    return apply_builtin(static_cast<builtin>(tlindex), &x);
+    using type = detail::select_integer_type_t<sizeof(T),
+                                               std::is_signed<T>::value>;
+    return apply_impl(reinterpret_cast<type&>(x));
   }
 
   error apply(std::string& x) {
-    return apply_builtin(string8_v, &x);
+    return apply_impl(x);
   }
 
   error apply(std::u16string& x) {
-    return apply_builtin(string16_v, &x);
+    return apply_impl(x);
   }
 
   error apply(std::u32string& x) {
-    return apply_builtin(string32_v, &x);
+    return apply_impl(x);
   }
 
   template <class D, atom_value V>
@@ -286,6 +263,7 @@ public:
 
   template <class T>
   error fill_range(T& xs, size_t num_elements) {
+    xs.clear();
     auto insert_iter = std::inserter(xs, xs.end());
     for (size_t i = 0; i < num_elements; ++i) {
       typename std::remove_const<typename T::value_type>::type x;
@@ -300,6 +278,7 @@ public:
   /// Loads elements from type `U` before inserting to `xs`.
   template <class U, class T>
   error fill_range_c(T& xs, size_t num_elements) {
+    xs.clear();
     auto insert_iter = std::inserter(xs, xs.end());
     for (size_t i = 0; i < num_elements; ++i) {
       U x;
@@ -474,7 +453,7 @@ public:
       return apply(dur);
     }
     if (Derived::writes_state) {
-      Duration dur;
+      Duration dur{};
       auto e = apply(dur);
       t = std::chrono::time_point<std::chrono::system_clock, Duration>{dur};
       return e;
@@ -548,8 +527,33 @@ public:
   }
 
 protected:
-  /// Applies this processor to a single builtin value.
-  virtual error apply_builtin(builtin in_out_type, void* in_out) = 0;
+  virtual error apply_impl(int8_t&) = 0;
+
+  virtual error apply_impl(uint8_t&) = 0;
+
+  virtual error apply_impl(int16_t&) = 0;
+
+  virtual error apply_impl(uint16_t&) = 0;
+
+  virtual error apply_impl(int32_t&) = 0;
+
+  virtual error apply_impl(uint32_t&) = 0;
+
+  virtual error apply_impl(int64_t&) = 0;
+
+  virtual error apply_impl(uint64_t&) = 0;
+
+  virtual error apply_impl(float&) = 0;
+
+  virtual error apply_impl(double&) = 0;
+
+  virtual error apply_impl(long double&) = 0;
+
+  virtual error apply_impl(std::string&) = 0;
+
+  virtual error apply_impl(std::u16string&) = 0;
+
+  virtual error apply_impl(std::u32string&) = 0;
 
 private:
   template <class T>
@@ -584,4 +588,3 @@ private:
 
 } // namespace caf
 
-#endif // CAF_DATA_PROCESSOR_HPP

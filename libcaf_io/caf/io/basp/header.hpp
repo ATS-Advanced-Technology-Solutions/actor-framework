@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_BASP_HEADER_HPP
-#define CAF_IO_BASP_HEADER_HPP
+#pragma once
 
 #include <string>
 #include <cstdint>
@@ -36,9 +35,6 @@ namespace basp {
 
 /// @addtogroup BASP
 
-/// Sequence number type for BASP headers.
-using sequence_type = uint16_t;
-
 /// The header of a Binary Actor System Protocol (BASP) message.
 /// A BASP header consists of a routing part, i.e., source and
 /// destination, as well as an operation and operation data. Several
@@ -50,42 +46,18 @@ struct header {
   uint8_t flags;
   uint32_t payload_len;
   uint64_t operation_data;
-  node_id source_node;
-  node_id dest_node;
   actor_id source_actor;
   actor_id dest_actor;
-  sequence_type sequence_number;
 
-  inline header(message_type m_operation, uint8_t m_flags,
-                uint32_t m_payload_len, uint64_t m_operation_data,
-                node_id m_source_node, node_id m_dest_node,
-                actor_id m_source_actor, actor_id m_dest_actor)
+  header(message_type m_operation, uint8_t m_flags, uint32_t m_payload_len,
+         uint64_t m_operation_data, actor_id m_source_actor,
+         actor_id m_dest_actor)
       : operation(m_operation),
         flags(m_flags),
         payload_len(m_payload_len),
         operation_data(m_operation_data),
-        source_node(std::move(m_source_node)),
-        dest_node(std::move(m_dest_node)),
         source_actor(m_source_actor),
-        dest_actor(m_dest_actor),
-        sequence_number(0) {
-    // nop
-  }
-
-  inline header(message_type m_operation, uint8_t m_flags,
-                uint32_t m_payload_len, uint64_t m_operation_data,
-                node_id m_source_node, node_id m_dest_node,
-                actor_id m_source_actor, actor_id m_dest_actor,
-                sequence_type m_sequence_number)
-      : operation(m_operation),
-        flags(m_flags),
-        payload_len(m_payload_len),
-        operation_data(m_operation_data),
-        source_node(std::move(m_source_node)),
-        dest_node(std::move(m_dest_node)),
-        source_actor(m_source_actor),
-        dest_actor(m_dest_actor),
-        sequence_number(m_sequence_number) {
+        dest_actor(m_dest_actor) {
     // nop
   }
 
@@ -95,7 +67,7 @@ struct header {
   static const uint8_t named_receiver_flag = 0x01;
 
   /// Queries whether this header has the given flag.
-  inline bool has(uint8_t flag) const {
+  bool has(uint8_t flag) const {
     return (flags & flag) != 0;
   }
 };
@@ -109,9 +81,7 @@ typename Inspector::result_type inspect(Inspector& f, header& hdr) {
            meta::omittable(), pad,
            meta::omittable(), pad,
            hdr.flags, hdr.payload_len, hdr.operation_data,
-           hdr.source_node, hdr.dest_node,
-           hdr.source_actor, hdr.dest_actor,
-           hdr.sequence_number);
+           hdr.source_actor, hdr.dest_actor);
 }
 
 /// @relates header
@@ -138,11 +108,9 @@ inline bool is_heartbeat(const header& hdr) {
 bool valid(const header& hdr);
 
 /// Size of a BASP header in serialized form
-constexpr size_t header_size = node_id::serialized_size * 2
-                               + sizeof(actor_id) * 2
+constexpr size_t header_size = sizeof(actor_id) * 2
                                + sizeof(uint32_t) * 2
-                               + sizeof(uint64_t)
-                               + sizeof(sequence_type);
+                               + sizeof(uint64_t);
 
 /// @}
 
@@ -150,4 +118,3 @@ constexpr size_t header_size = node_id::serialized_size * 2
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_BASP_HEADER_HPP

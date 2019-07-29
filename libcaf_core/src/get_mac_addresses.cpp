@@ -1,5 +1,25 @@
-#include "caf/config.hpp"
+/******************************************************************************
+ *                       ____    _    _____                                   *
+ *                      / ___|  / \  |  ___|    C++                           *
+ *                     | |     / _ \ | |_       Actor                         *
+ *                     | |___ / ___ \|  _|      Framework                     *
+ *                      \____/_/   \_|_|                                      *
+ *                                                                            *
+ * Copyright 2011-2018 Dominik Charousset                                     *
+ *                                                                            *
+ * Distributed under the terms and conditions of the BSD 3-Clause License or  *
+ * (at your option) under the terms and conditions of the Boost Software      *
+ * License 1.0. See accompanying files LICENSE and LICENSE_ALTERNATIVE.       *
+ *                                                                            *
+ * If you did not receive a copy of the license files, see                    *
+ * http://opensource.org/licenses/BSD-3-Clause and                            *
+ * http://www.boost.org/LICENSE_1_0.txt.                                      *
+ ******************************************************************************/
+
 #include "caf/detail/get_mac_addresses.hpp"
+
+#include "caf/config.hpp"
+#include "caf/detail/scope_guard.hpp"
 
 #if defined(CAF_MACOS) || defined(CAF_BSD) || defined(CAF_IOS)
 
@@ -48,6 +68,9 @@ std::vector<iface_info> get_mac_addresses() {
     }
     auto ifm = reinterpret_cast<if_msghdr*>(buf.data());
     auto sdl = reinterpret_cast<sockaddr_dl*>(ifm + 1);
+    constexpr auto mac_addr_len = 6;
+    if (sdl->sdl_alen != mac_addr_len)
+      continue;
     auto ptr = reinterpret_cast<unsigned char*>(LLADDR(sdl));
     auto uctoi = [](unsigned char c) -> unsigned {
       return static_cast<unsigned char>(c);
@@ -57,7 +80,7 @@ std::vector<iface_info> get_mac_addresses() {
     oss.fill('0');
     oss.width(2);
     oss << uctoi(*ptr++);
-    for (auto j = 0; j < 5; ++j) {
+    for (auto j = 0; j < mac_addr_len - 1; ++j) {
       oss << ":";
       oss.width(2);
       oss << uctoi(*ptr++);
@@ -98,11 +121,18 @@ namespace detail {
 
 std::vector<iface_info> get_mac_addresses() {
   // get a socket handle
-  int sck = socket(AF_INET, SOCK_DGRAM, 0);
+  int socktype = SOCK_DGRAM;
+#ifdef SOCK_CLOEXEC
+  socktype |= SOCK_CLOEXEC;
+#endif
+  int sck = socket(AF_INET, socktype, 0);
   if (sck < 0) {
     perror("socket");
     return {};
   }
+  auto g = make_scope_guard([&] {
+    close(sck);
+  });
   // query available interfaces
   char buf[1024] = {0};
   ifconf ifc;

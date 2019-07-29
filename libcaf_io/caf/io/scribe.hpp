@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_SCRIBE_HPP
-#define CAF_IO_SCRIBE_HPP
+#pragma once
 
 #include <vector>
 
@@ -58,8 +57,6 @@ public:
   /// content of the buffer via the network.
   virtual void flush() = 0;
 
-  void io_failure(execution_unit* ctx, network::operation op) override;
-
   bool consume(execution_unit*, const void*, size_t) override;
 
   void data_transferred(execution_unit*, size_t, size_t) override;
@@ -77,4 +74,3 @@ using scribe_ptr = intrusive_ptr<scribe>;
 // BASP broker.
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(caf::io::scribe_ptr)
 
-#endif // CAF_IO_SCRIBE_HPP

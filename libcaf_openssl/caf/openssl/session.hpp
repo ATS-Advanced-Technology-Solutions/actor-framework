@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_OPENSSL_SESSION_HPP
-#define CAF_OPENSSL_SESSION_HPP
+#pragma once
 
 #include <memory>
 
@@ -59,6 +58,9 @@ public:
                       size_t len);
   bool try_connect(native_socket fd);
   bool try_accept(native_socket fd);
+
+  bool must_read_more(native_socket, size_t threshold);
+
   const char* openssl_passphrase();
 
 private:
@@ -66,7 +68,6 @@ private:
                    size_t len, const char* debug_name);
   SSL_CTX* create_ssl_context();
   std::string get_ssl_error();
-  void raise_ssl_error(std::string msg);
   bool handle_ssl_result(int ret);
 
   actor_system& sys_;
@@ -87,4 +88,3 @@ session_ptr make_session(actor_system& sys, native_socket fd,
 } // namespace openssl
 } // namespace caf
 
-#endif // CAF_OPENSSL_SESSION_HPP

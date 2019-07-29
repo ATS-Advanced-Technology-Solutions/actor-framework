@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ACTOR_ADDR_HPP
-#define CAF_ACTOR_ADDR_HPP
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -27,7 +26,6 @@
 #include "caf/fwd.hpp"
 #include "caf/abstract_actor.hpp"
 #include "caf/actor_control_block.hpp"
-#include "caf/unsafe_actor_handle_init.hpp"
 
 #include "caf/detail/comparable.hpp"
 
@@ -58,7 +56,6 @@ public:
   actor_addr& operator=(const actor_addr&) = default;
 
   actor_addr(std::nullptr_t);
-  actor_addr(const unsafe_actor_handle_init_t&);
 
   actor_addr& operator=(std::nullptr_t);
 
@@ -172,4 +169,3 @@ struct hash<caf::actor_addr> {
 };
 } // namespace std
 
-#endif // CAF_ACTOR_ADDR_HPP

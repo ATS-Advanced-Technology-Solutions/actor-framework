@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ACTOR_MARKER_HPP
-#define CAF_ACTOR_MARKER_HPP
+#pragma once
 
 #include "caf/fwd.hpp"
 
@@ -41,6 +40,11 @@ struct actor_marker<behavior> {
   using type = dynamically_typed_actor_base;
 };
 
+template <class T>
+using is_statically_typed = std::is_base_of<statically_typed_actor_base, T>;
+
+template <class T>
+using is_dynamically_typed = std::is_base_of<dynamically_typed_actor_base, T>;
+
 } // namespace caf
 
-#endif // CAF_ACTOR_MARKER_HPP

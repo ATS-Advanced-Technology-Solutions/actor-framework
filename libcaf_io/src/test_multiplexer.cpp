@@ -18,11 +18,11 @@
 
 #include "caf/io/network/test_multiplexer.hpp"
 
-#include "caf/scheduler/abstract_coordinator.hpp"
-
-#include "caf/io/scribe.hpp"
-#include "caf/io/doorman.hpp"
 #include "caf/io/datagram_servant.hpp"
+#include "caf/io/doorman.hpp"
+#include "caf/io/scribe.hpp"
+#include "caf/raise_error.hpp"
+#include "caf/scheduler/abstract_coordinator.hpp"
 
 namespace caf {
 namespace io {
@@ -72,7 +72,6 @@ test_multiplexer::datagram_data::
 
 test_multiplexer::test_multiplexer(actor_system* sys)
     : multiplexer(sys),
-      tid_(std::this_thread::get_id()),
       inline_runnables_(0),
       servant_ids_(0) {
   CAF_ASSERT(sys != nullptr);
@@ -108,7 +107,7 @@ scribe_ptr test_multiplexer::new_scribe(connection_handle hdl) {
     std::vector<char>& rd_buf() override {
       return mpx_->input_buffer(hdl());
     }
-    void stop_reading() override {
+    void graceful_shutdown() override {
       mpx_->stopped_reading(hdl()) = true;
       detach(mpx_, false);
     }
@@ -184,7 +183,7 @@ doorman_ptr test_multiplexer::new_doorman(accept_handle hdl, uint16_t port) {
       parent()->add_scribe(mpx_->new_scribe(ch));
       return doorman::new_connection(mpx_, ch);
     }
-    void stop_reading() override {
+    void graceful_shutdown() override {
       mpx_->stopped_reading(hdl()) = true;
       detach(mpx_, false);
     }
@@ -365,7 +364,7 @@ datagram_servant_ptr test_multiplexer::new_datagram_servant(datagram_handle hdl,
       auto& buf = mpx_->input_buffer(hdl());
       return buf.second;
     }
-    void stop_reading() override {
+    void graceful_shutdown() override {
       mpx_->stopped_reading(hdl()) = true;
       detach_handles();
       detach(mpx_, false);
@@ -744,8 +743,9 @@ bool test_multiplexer::try_accept_connection() {
       doormen.emplace_back(&kvp.second);
   }
   // Try accepting a new connection on all existing doorman.
-  return std::any_of(doormen.begin(), doormen.end(),
-                     [](doorman_data* x) { return x->ptr->new_connection(); });
+  return std::any_of(doormen.begin(), doormen.end(), [](doorman_data* x) {
+    return x->ptr != nullptr ? x->ptr->new_connection() : false;
+  });
 }
 
 bool test_multiplexer::try_read_data() {

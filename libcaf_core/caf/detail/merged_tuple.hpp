@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_MERGED_TUPLE_HPP
-#define CAF_DETAIL_MERGED_TUPLE_HPP
+#pragma once
 
 #include "caf/message.hpp"
 #include "caf/actor_addr.hpp"
@@ -47,7 +46,7 @@ public:
 
   // -- overridden observers of message_data -----------------------------------
 
-  cow_ptr copy() const override;
+  merged_tuple* copy() const override;
 
   // -- overridden modifiers of type_erased_tuple ------------------------------
 
@@ -90,4 +89,3 @@ private:
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_DETAIL_MERGED_TUPLE_HPP

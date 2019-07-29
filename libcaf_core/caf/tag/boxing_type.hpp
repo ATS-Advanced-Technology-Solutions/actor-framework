@@ -16,6 +16,8 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
+#pragma once
+
 namespace caf {
 namespace tag {
 
@@ -24,3 +26,4 @@ struct boxing_type {};
 
 } // namespace tag
 } // namespace caf
+

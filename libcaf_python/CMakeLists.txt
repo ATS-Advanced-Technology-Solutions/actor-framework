@@ -3,7 +3,7 @@ project(caf_cash CXX)
 
 # check whether submodules are available
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pybind/CMakeLists.txt")
-  message(WARNING "pybind submodule not loaded, skip libcaf_python")
+  message(STATUS "Pybind submodule not loaded, skip libcaf_python.")
   set(CAF_NO_PYTHON yes)
 else()
   if(NOT "${CAF_PYTHON_CONFIG_BIN}" STREQUAL "")
@@ -13,10 +13,10 @@ else()
     execute_process(COMMAND "${CAF_PYTHON_CONFIG_BIN}" --ldflags
                     OUTPUT_VARIABLE PYTHON_LDFLAGS)
     string(STRIP "${PYTHON_LDFLAGS}" PYTHON_LDFLAGS)
-    if ("${LD_FLAGS}" STREQUAL "")
-      set(LD_FLAGS "${PYTHON_LDFLAGS}")
+    if ("${CAF_EXTRA_LDFLAGS}" STREQUAL "")
+      set(CAF_EXTRA_LDFLAGS "${PYTHON_LDFLAGS}")
     else()
-      set(LD_FLAGS "${LD_FLAGS} ${PYTHON_LDFLAGS}")
+      set(CAF_EXTRA_LDFLAGS "${CAF_EXTRA_LDFLAGS} ${PYTHON_LDFLAGS}")
     endif()
     string(REPLACE " -I" ";-I" dir_list ${PYTHON_INCLUDE_FLAGS})
     foreach(flag ${dir_list})
@@ -46,14 +46,14 @@ if(NOT CAF_NO_PYTHON)
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
   add_executable(caf-python ${CAF_PYTHON_SRCS} ${CAF_PYTHON_HDRS})
   target_link_libraries(caf-python
-                        ${LD_FLAGS}
+                        ${CAF_EXTRA_LDFLAGS}
                         ${CAF_LIBRARY_CORE}
                         ${CAF_LIBRARY_IO}
                         ${CAF_LIBRARY_RIAC}
                         ${PTHREAD_LIBRARIES}
                         ${LIBEDIT_LIBRARIES}
                         ${PYTHON_LIBRARIES})
-  install(PROGRAMS ${EXECUTABLE_OUTPUT_PATH}/caf-python DESTINATION bin)
+  install(TARGETS caf-python DESTINATION bin)
 else()
   add_custom_target(caf-python SOURCES ${CAF_PYTHON_SRCS} ${CAF_PYTHON_HDRS})
 endif()

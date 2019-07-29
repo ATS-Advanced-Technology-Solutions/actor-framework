@@ -18,6 +18,8 @@
 
 #include "caf/detail/stringification_inspector.hpp"
 
+#include <ctime>
+
 namespace caf {
 namespace detail {
 
@@ -39,20 +41,20 @@ void stringification_inspector::consume(atom_value& x) {
   result_ += '\'';
 }
 
-void stringification_inspector::consume(const char* cstr) {
-  if (cstr == nullptr || *cstr == '\0') {
+void stringification_inspector::consume(string_view str) {
+  if (str.empty()) {
     result_ += R"("")";
     return;
   }
-  if (*cstr == '"') {
-    // assume an already escaped string
-    result_ += cstr;
+  if (str[0] == '"') {
+    // Assume an already escaped string.
+    result_.insert(result_.end(), str.begin(), str.end());
     return;
   }
+  // Escape string.
   result_ += '"';
-  char c;
-  for(;;) {
-    switch (c = *cstr++) {
+  for (char c : str) {
+    switch (c) {
       default:
         result_ += c;
         break;
@@ -62,27 +64,43 @@ void stringification_inspector::consume(const char* cstr) {
       case '"':
         result_ += R"(\")";
         break;
-      case '\0':
-        goto end_of_string;
     }
   }
-  end_of_string:
   result_ += '"';
 }
 
-void stringification_inspector::consume_hex(const uint8_t* xs, size_t n) {
-  if (n == 0) {
-    result_ += "00";
-    return;
+void stringification_inspector::consume(timespan& x) {
+  auto count = x.count();
+  auto res = [&](const char* suffix) {
+    result_ += std::to_string(count);
+    result_ += suffix;
+  };
+  // Check whether it's nano-, micro-, or milliseconds.
+  for (auto suffix : {"ns", "us", "ms"}) {
+    if (count % 1000 != 0)
+      return res(suffix);
+    count /= 1000;
   }
-  auto tbl = "0123456789ABCDEF";
-  char buf[3] = {0, 0, 0};
-  for (size_t i = 0; i < n; ++i) {
-    auto c = xs[i];
-    buf[0] = tbl[c >> 4];
-    buf[1] = tbl[c & 0x0F];
-    result_ += buf;
-  }
+  // After the loop we only need to differentiate between seconds and minutes.
+  if (count % 60 != 0)
+    return res("s");
+  count /= 60;
+  return res("min");
+}
+
+void stringification_inspector::consume(timestamp& x) {
+  char buf[64];
+  auto y = std::chrono::time_point_cast<timestamp::clock::duration>(x);
+  auto z = timestamp::clock::to_time_t(y);
+  strftime(buf, sizeof(buf), "%FT%T", std::localtime(&z));
+  result_ += buf;
+  // time_t has no milliseconds, so we need to insert them manually.
+  auto ms = (x.time_since_epoch().count() / 1000000) % 1000;
+  result_ += '.';
+  auto frac = std::to_string(ms);
+  if (frac.size() < 3)
+    frac.insert(0, 3 - frac.size(), '0');
+  result_ += frac;
 }
 
 } // namespace detail

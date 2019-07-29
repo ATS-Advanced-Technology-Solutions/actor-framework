@@ -16,17 +16,18 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_INTRUSIVE_PTR_HPP
-#define CAF_INTRUSIVE_PTR_HPP
+#pragma once
 
-#include <string>
-#include <cstddef>
-#include <cinttypes>
 #include <algorithm>
+#include <cstddef>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 
+#include "caf/detail/append_hex.hpp"
 #include "caf/detail/comparable.hpp"
+#include "caf/detail/type_traits.hpp"
+#include "caf/fwd.hpp"
 
 namespace caf {
 
@@ -35,16 +36,35 @@ namespace caf {
 template <class T>
 class intrusive_ptr {
 public:
+  // -- friends ----------------------------------------------------------------
+
+  template <class>
+  friend class intrusive_cow_ptr;
+
+  // -- member types -----------------------------------------------------------
+
   using pointer = T*;
+
   using const_pointer = const T*;
+
   using element_type = T;
+
   using reference = T&;
+
   using const_reference = const T&;
+
+  // -- constants --------------------------------------------------------------
 
   // tell actor_cast which semantic this type uses
   static constexpr bool has_weak_ptr_semantics = false;
 
+  // -- constructors, destructors, and assignment operators --------------------
+
   constexpr intrusive_ptr() noexcept : ptr_(nullptr) {
+    // nop
+  }
+
+  constexpr intrusive_ptr(std::nullptr_t) noexcept : intrusive_ptr() {
     // nop
   }
 
@@ -215,13 +235,15 @@ bool operator!=(const T* x, const intrusive_ptr<T>& y) {
 
 /// @relates intrusive_ptr
 template <class T, class U>
-bool operator==(const intrusive_ptr<T>& x, const intrusive_ptr<U>& y) {
+detail::enable_if_t<detail::is_comparable<T*, U*>::value, bool>
+operator==(const intrusive_ptr<T>& x, const intrusive_ptr<U>& y) {
   return x.get() == y.get();
 }
 
 /// @relates intrusive_ptr
 template <class T, class U>
-bool operator!=(const intrusive_ptr<T>& x, const intrusive_ptr<U>& y) {
+detail::enable_if_t<detail::is_comparable<T*, U*>::value, bool>
+operator!=(const intrusive_ptr<T>& x, const intrusive_ptr<U>& y) {
   return x.get() != y.get();
 }
 
@@ -244,14 +266,11 @@ bool operator<(const T* x, const intrusive_ptr<T>& y) {
 
 template <class T>
 std::string to_string(const intrusive_ptr<T>& x) {
+  std::string result;
   auto v = reinterpret_cast<uintptr_t>(x.get());
-  // we convert to hex representation, i.e.,
-  // one byte takes two characters + null terminator + "0x" prefix
-  char buf[sizeof(v) * 2 + 3];
-  sprintf(buf, "%" PRIxPTR, v);
-  return buf;
+  detail::append_hex(result, reinterpret_cast<uint8_t*>(&v), sizeof(v));
+  return result;
 }
 
 } // namespace caf
 
-#endif // CAF_INTRUSIVE_PTR_HPP

@@ -23,11 +23,15 @@ CAF_PUSH_WARNINGS
 #include <openssl/ssl.h>
 CAF_POP_WARNINGS
 
-#include "caf/expected.hpp"
-#include "caf/actor_system.hpp"
-#include "caf/scoped_actor.hpp"
+#include <vector>
+#include <mutex>
+
 #include "caf/actor_control_block.hpp"
+#include "caf/actor_system.hpp"
 #include "caf/actor_system_config.hpp"
+#include "caf/expected.hpp"
+#include "caf/raise_error.hpp"
+#include "caf/scoped_actor.hpp"
 
 #include "caf/io/middleman.hpp"
 #include "caf/io/basp_broker.hpp"
@@ -35,11 +39,60 @@ CAF_POP_WARNINGS
 
 #include "caf/openssl/middleman_actor.hpp"
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+struct CRYPTO_dynlock_value {
+  std::mutex mtx;
+};
+
+namespace {
+
+int init_count = 0;
+
+std::mutex init_mutex;
+
+std::vector<std::mutex> mutexes;
+
+void locking_function(int mode, int n, const char*, int) {
+  if (mode & CRYPTO_LOCK)
+    mutexes[static_cast<size_t>(n)].lock();
+  else
+    mutexes[static_cast<size_t>(n)].unlock();
+}
+
+CRYPTO_dynlock_value* dynlock_create(const char*, int) {
+  return new CRYPTO_dynlock_value;
+}
+
+void dynlock_lock(int mode, CRYPTO_dynlock_value* dynlock, const char*, int) {
+  if (mode & CRYPTO_LOCK)
+    dynlock->mtx.lock();
+  else
+    dynlock->mtx.unlock();
+}
+
+void dynlock_destroy(CRYPTO_dynlock_value* dynlock, const char*, int) {
+  delete dynlock;
+}
+
+} // namespace <anonymous>
+
+#endif
+
 namespace caf {
 namespace openssl {
 
 manager::~manager() {
-  // nop
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+  std::lock_guard<std::mutex> lock{init_mutex};
+  --init_count;
+  if (init_count == 0) {
+    CRYPTO_set_locking_callback(nullptr);
+    CRYPTO_set_dynlock_create_callback(nullptr);
+    CRYPTO_set_dynlock_lock_callback(nullptr);
+    CRYPTO_set_dynlock_destroy_callback(nullptr);
+    mutexes = std::vector<std::mutex>(0);
+  }
+#endif
 }
 
 void manager::start() {
@@ -52,7 +105,7 @@ void manager::stop() {
   CAF_LOG_TRACE("");
   scoped_actor self{system(), true};
   self->send_exit(manager_, exit_reason::kill);
-  if (system().config().middleman_detach_utility_actors)
+  if (!get_or(config(), "middleman.attach-utility-actors", false))
     self->wait_for(manager_);
   manager_ = nullptr;
 }
@@ -69,6 +122,18 @@ void manager::init(actor_system_config&) {
     if (system().config().openssl_key.size() == 0)
       CAF_RAISE_ERROR("No private key configured for SSL endpoint");
   }
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+  std::lock_guard<std::mutex> lock{init_mutex};
+  ++init_count;
+  if (init_count == 1) {
+    mutexes = std::vector<std::mutex>{static_cast<size_t>(CRYPTO_num_locks())};
+    CRYPTO_set_locking_callback(locking_function);
+    CRYPTO_set_dynlock_create_callback(dynlock_create);
+    CRYPTO_set_dynlock_lock_callback(dynlock_lock);
+    CRYPTO_set_dynlock_destroy_callback(dynlock_destroy);
+    // OpenSSL's default thread ID callback should work, so don't set our own.
+  }
+#endif
 }
 
 actor_system::module::id_t manager::id() const {

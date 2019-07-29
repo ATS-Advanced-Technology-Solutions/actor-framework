@@ -16,14 +16,15 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_TYPED_ACTOR_DETAIL_HPP
-#define CAF_DETAIL_TYPED_ACTOR_DETAIL_HPP
+#pragma once
 
 #include <tuple>
 
 #include "caf/delegated.hpp"
 #include "caf/replies_to.hpp"
+#include "caf/response_promise.hpp"
 #include "caf/system_messages.hpp"
+#include "caf/typed_response_promise.hpp"
 
 #include "caf/detail/type_list.hpp"
 
@@ -47,6 +48,20 @@ template <class Arguments>
 struct input_is {
   template <class Signature>
   struct eval : input_is_eval_impl<Arguments, Signature> { };
+};
+
+template <class... Ts>
+struct make_response_promise_helper {
+  using type = typed_response_promise<Ts...>;
+};
+
+template <class... Ts>
+struct make_response_promise_helper<typed_response_promise<Ts...>>
+    : make_response_promise_helper<Ts...> {};
+
+template <>
+struct make_response_promise_helper<response_promise> {
+  using type = response_promise;
 };
 
 template <class Output, class F>
@@ -128,4 +143,3 @@ struct extend_with_helper<typed_actor<Xs...>, typed_actor<Ys...>, Ts...>
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_DETAIL_TYPED_ACTOR_DETAIL_HPP

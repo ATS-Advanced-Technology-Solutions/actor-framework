@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_BROKER_SERVANT_HPP
-#define CAF_IO_BROKER_SERVANT_HPP
+#pragma once
 
 #include "caf/fwd.hpp"
 #include "caf/mailbox_element.hpp"
@@ -93,7 +92,8 @@ protected:
     invoke_mailbox_element_impl(ctx, value_);
     // only consume an activity token if actor did not produce them now
     if (prev && activity_tokens_ && --(*activity_tokens_) == 0) {
-      if (this->parent()->getf(abstract_actor::is_terminated_flag))
+      if (this->parent()->getf(abstract_actor::is_shutting_down_flag
+                               | abstract_actor::is_terminated_flag))
         return false;
       // tell broker it entered passive mode, this can result in
       // producing, why we check the condition again afterwards
@@ -108,7 +108,7 @@ protected:
           >::type
         >::type;
         using tmp_t = mailbox_element_vals<passiv_t>;
-        tmp_t tmp{strong_actor_ptr{},                  make_message_id(),
+        tmp_t tmp{strong_actor_ptr{}, make_message_id(),
                   mailbox_element::forwarding_stack{}, passiv_t{hdl()}};
         invoke_mailbox_element_impl(ctx, tmp);
         return activity_tokens_ != size_t{0};
@@ -128,5 +128,4 @@ protected:
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_BROKER_SERVANT_HPP
 

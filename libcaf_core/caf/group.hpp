@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_GROUP_HPP
-#define CAF_GROUP_HPP
+#pragma once
 
 #include <string>
 #include <utility>
@@ -45,9 +44,6 @@ constexpr invalid_group_t invalid_group = invalid_group_t{};
 class group : detail::comparable<group>,
               detail::comparable<group, invalid_group_t> {
 public:
-  template <class, class, int>
-  friend class actor_cast_access;
-
   using signatures = none_t;
 
   group() = default;
@@ -161,4 +157,3 @@ struct hash<caf::group> {
 };
 } // namespace std
 
-#endif // CAF_GROUP_HPP

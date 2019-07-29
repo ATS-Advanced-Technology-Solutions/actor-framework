@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_EXPECTED_HPP
-#define CAF_EXPECTED_HPP
+#pragma once
 
 #include "caf/config.hpp"
 
@@ -26,9 +25,10 @@
 #include <ostream>
 #include <type_traits>
 
-#include "caf/unit.hpp"
+#include "caf/deep_to_string.hpp"
 #include "caf/error.hpp"
 #include "caf/unifyn.hpp"
+#include "caf/unit.hpp"
 
 namespace caf {
 
@@ -68,23 +68,23 @@ public:
   expected(U x,
            typename std::enable_if<std::is_convertible<U, T>::value>::type* = nullptr)
       : engaged_(true) {
-    new (&value_) T(std::move(x));
+    new (std::addressof(value_)) T(std::move(x));
   }
 
   expected(T&& x) noexcept(nothrow_move) : engaged_(true) {
-    new (&value_) T(std::move(x));
+    new (std::addressof(value_)) T(std::move(x));
   }
 
   expected(const T& x) noexcept(nothrow_copy) : engaged_(true) {
-    new (&value_) T(x);
+    new (std::addressof(value_)) T(x);
   }
 
   expected(caf::error e) noexcept : engaged_(false) {
-    new (&error_) caf::error{std::move(e)};
+    new (std::addressof(error_)) caf::error{std::move(e)};
   }
 
   expected(no_error_t) noexcept : engaged_(false) {
-    new (&error_) caf::error{};
+    new (std::addressof(error_)) caf::error{};
   }
 
   expected(const expected& other) noexcept(nothrow_copy) {
@@ -93,7 +93,7 @@ public:
 
   template <class Code, class E = enable_if_has_make_error_t<Code>>
   expected(Code code) : engaged_(false) {
-    new (&error_) caf::error(make_error(code));
+    new (std::addressof(error_)) caf::error(make_error(code));
   }
 
   expected(expected&& other) noexcept(nothrow_move) {
@@ -134,7 +134,7 @@ public:
     } else {
       destroy();
       engaged_ = true;
-      new (&value_) T(x);
+      new (std::addressof(value_)) T(x);
     }
     return *this;
   }
@@ -146,7 +146,7 @@ public:
     } else {
       destroy();
       engaged_ = true;
-      new (&value_) T(std::move(x));
+      new (std::addressof(value_)) T(std::move(x));
     }
     return *this;
   }
@@ -163,7 +163,7 @@ public:
     else {
       destroy();
       engaged_ = false;
-      new (&error_) caf::error(std::move(e));
+      new (std::addressof(error_)) caf::error(std::move(e));
     }
     return *this;
   }
@@ -248,17 +248,17 @@ public:
 private:
   void construct(expected&& other) noexcept(nothrow_move) {
     if (other.engaged_)
-      new (&value_) T(std::move(other.value_));
+      new (std::addressof(value_)) T(std::move(other.value_));
     else
-      new (&error_) caf::error(std::move(other.error_));
+      new (std::addressof(error_)) caf::error(std::move(other.error_));
     engaged_ = other.engaged_;
   }
 
   void construct(const expected& other) noexcept(nothrow_copy) {
     if (other.engaged_)
-      new (&value_) T(other.value_);
+      new (std::addressof(value_)) T(other.value_);
     else
-      new (&error_) caf::error(other.error_);
+      new (std::addressof(error_)) caf::error(other.error_);
     engaged_ = other.engaged_;
   }
 
@@ -443,18 +443,6 @@ inline std::string to_string(const expected<void>& x) {
   return "!" + to_string(x.error());
 }
 
-/// @cond PRIVATE
-/// Assigns the value of `expr` (which must return an `expected`)
-/// to a new variable named `var` or throws a `std::runtime_error` on error.
-/// @relates expected
-/// @experimental
-#define CAF_EXP_THROW(var, expr)                                               \
-  auto CAF_UNIFYN(tmp_var_) = expr;                                            \
-  if (!CAF_UNIFYN(tmp_var_))                                                  \
-    CAF_RAISE_ERROR(to_string(CAF_UNIFYN(tmp_var_).error()));                  \
-  auto& var = *CAF_UNIFYN(tmp_var_)
-/// @endcond
-
 } // namespace caf
 
 namespace std {
@@ -471,4 +459,3 @@ auto operator<<(ostream& oss, const caf::expected<T>& x)
 
 } // namespace std
 
-#endif

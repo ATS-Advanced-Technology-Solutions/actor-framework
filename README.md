@@ -5,7 +5,7 @@ lightweight & fast actor implementations, pattern matching for messages,
 network transparent messaging, and more.
 
 [![Gitter][gitter-badge]](https://gitter.im/actor-framework/chat)
-[![Jenkins][jenkins-badge]](https://jenkins.inet.haw-hamburg.de/view/CAF%20Dashboard)
+[![Jenkins][jenkins-badge]](https://jenkins.inet.haw-hamburg.de/job/CAF/job/actor-framework/job/master)
 [![Documentation Status][docs-badge]](http://actor-framework.readthedocs.io/en/latest/?badge=latest)
 [![Coverity][coverity-badge]](https://scan.coverity.com/projects/5555)
 [![In Progress][in-progress-badge]](https://waffle.io/actor-framework/actor-framework)
@@ -32,19 +32,6 @@ network transparent messaging, and more.
 * __Feature Proposals__: https://github.com/actor-framework/evolution
 
 ## Get CAF
-
-### Linux Packages
-
-We provide binary packages for several Linux distributions using the
-*openSUSE Build Service*. Please follow the linked installation guides below
-or alternatively visit our OBS project homepage:
-https://build.opensuse.org/package/show/devel:libraries:caf/caf
-
-package   | description          | link 
-----------|----------------------|-----------------------------
-caf       | binaries only        | [stable][obs]     [nightly][obs-nightly]
-caf-devel | binaries and headers | [stable][obs-dev] [nightly][obs-dev-nightly]
-
 
 ### FreeBSD Ports
 
@@ -75,6 +62,12 @@ Alternatively, you can use the current development version by using:
 ```sh
 brew install caf --HEAD
 ```
+
+### Conan
+
+A [Conan](https://conan.io/) recipe for CAF along with pre-built libraries
+for most platforms are available at [bincrafters/caf](https://bintray.com/bincrafters/public-conan/caf%3Abincrafters).
+
 
 ## Get the Sources
 
@@ -121,7 +114,7 @@ A SNocs workspace is provided by GitHub user
 
 ## Supported Compilers
 
-* GCC >= 4.8
+* GCC >= 4.8.3
 * Clang >= 3.2
 * MSVC >= 2015, update 3
 
@@ -131,6 +124,12 @@ A SNocs workspace is provided by GitHub user
 * Mac OS X
 * FreeBSD 10
 * Windows >= 7 (currently static builds only)
+
+## Optional Dependencies
+
+* Doxygen (for the `doxygen` target)
+* LaTeX (for the `manual` target)
+* Pandoc and Python with pandocfilters (for the `rst` target)
 
 ## Scientific Use
 
@@ -172,7 +171,7 @@ http://dx.doi.org/10.1016/j.cl.2016.01.002.
 
 [obs-dev-nightly]: https://software.opensuse.org/download.html?project=devel%3Alibraries%3Acaf%3Anightly&package=caf-devel
 
-[jenkins-badge]: https://jenkins.inet.haw-hamburg.de/buildStatus/icon?job=CAF/all
+[jenkins-badge]: https://jenkins.inet.haw-hamburg.de/buildStatus/icon?job=CAF/actor-framework/master
 
 [docs-badge]: https://readthedocs.org/projects/actor-framework/badge/?version=latest
 

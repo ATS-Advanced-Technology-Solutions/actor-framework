@@ -71,8 +71,7 @@ Example for the Impatient
 ```cpp
 // libcaf_example/caf/example/my_class.hpp
 
-#ifndef CAF_EXAMPLE_MY_CLASS_HPP
-#define CAF_EXAMPLE_MY_CLASS_HPP
+#pragma once
 
 #include <string>
 
@@ -103,11 +102,11 @@ public:
     name_ = new_name;
   }
 
-  /// Prints the name to `STDIN`.
+  /// Prints the name to `std::cout`.
   void print_name() const;
 
   /// Does something (maybe).
-  void do_something() noexcept;
+  void do_something();
 
   /// Does something else but is guaranteed to never throw.
   void do_something_else() noexcept;
@@ -118,8 +117,6 @@ private:
 
 } // namespace example
 } // namespace caf
-
-#endif // CAF_EXAMPLE_MY_CLASS_HPP
 ```
 
 ```cpp
@@ -156,15 +153,18 @@ void my_class::do_something() {
               << "refuse to do something."
               << std::endl;
   } else {
-    std::cout << "You gave me the name " << name()
-              << "... Do you really think I'm willing to do something "
+    std::cout << "You gave me the name \"" << name()
+              << "\"... Do you really think I'm willing to do something "
                  "for you after insulting me like that?"
               << std::endl;
   }
 }
 
 void my_class::do_something_else() noexcept {
-  switch (default_name[0]) {
+  // Do nothing if we don't have a name.
+  if (name().empty())
+    return;
+  switch (name.front()) {
     case 'a':
       // handle a
       break;
@@ -195,7 +195,7 @@ General
 - Never declare more than one variable per line.
 
 - Only separate functions with vertical whitespaces and use comments to
-  document logcial blocks inside functions.
+  document logical blocks inside functions.
 
 - Use `.hpp` as suffix for header files and `.cpp` as suffix for implementation
   files.
@@ -233,7 +233,7 @@ General
 
   ```cpp
   // example.hpp
-  
+
   #include <vector>
 
   #include <sys/types.h>
@@ -247,11 +247,11 @@ General
 
   ```cpp
   // example.cpp
-  
+
   #include "caf/example.hpp" // header for this .cpp file
-  
+
   #include "caf/config.hpp" // needed for #ifdef guards
-  
+
   #include <algorithm>
 
   #ifdef CAF_WINDOWS
@@ -293,6 +293,10 @@ Naming
   ```cpp
   class person {
   public:
+    person(std::string name) : name_(std::move(name)) {
+      // nop
+    }
+
     const std::string& name() const {
       return name_
     }
@@ -308,11 +312,15 @@ Naming
 
 - Use `T` for generic, unconstrained template parameters and `x`
   for generic function arguments. Suffix both with `s` for
-  template parameter packs:
+  template parameter packs and lists:
 
   ```cpp
   template <class... Ts>
   void print(const Ts&... xs) {
+    // ...
+  }
+
+  void print(const std::vector<T>& xs) {
     // ...
   }
   ```
@@ -329,15 +337,14 @@ Headers
   is located at `libcaf_example/caf/example/my_class.hpp` and the
   source file at `libcaf_example/src/my_class.cpp`.
 
-- All header files should use `#define` guards to prevent multiple inclusion.
-  The symbol name is `<RELATIVE>_<PATH>_<TO>_<FILE>_HPP`.
+- All header files use `#pragma once` to prevent multiple inclusion.
 
 - Do not `#include` when a forward declaration suffices.
 
 - Each library component must provide a `fwd.hpp` header providing forward
   declartations for all types used in the user API.
 
-- Each library component must provide an `all.hpp` header that contains the
+- Each library component should provide an `all.hpp` header that contains the
   main page for the documentation and includes all headers for the user API.
 
 - Use `inline` for small functions (rule of thumb: 10 lines or less).
@@ -345,15 +352,15 @@ Headers
 Breaking Statements
 -------------------
 
-- Break constructor initializers after the comma, use four spaces for
+- Break constructor initializers after the comma, use two spaces for
   indentation, and place each initializer on its own line (unless you don't
   need to break at all):
 
   ```cpp
   my_class::my_class()
-      : my_base_class(some_function()),
-        greeting_("Hello there! This is my_class!"),
-        some_bool_flag_(false) {
+    : my_base_class(some_function()),
+      greeting_("Hello there! This is my_class!"),
+      some_bool_flag_(false) {
     // ok
   }
   other_class::other_class() : name_("tommy"), buddy_("michael") {
@@ -389,7 +396,7 @@ with an insane amount of syntax noise. In CAF, we make excessive use of
 templates. To keep the code readable despite all the syntax noise, we have some
 extra rules for formatting metaprogramming code.
 
-- Brake `using name = ...` statements always directly after `=` if it
+- Break `using name = ...` statements always directly after `=` if it
   does not fit in one line.
 
 - Consider the *semantics* of a metaprogramming function. For example,

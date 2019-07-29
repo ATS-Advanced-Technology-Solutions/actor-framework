@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_CONNECTION_HELPER_HPP
-#define CAF_IO_CONNECTION_HELPER_HPP
+#pragma once
 
 #include <chrono>
 
@@ -47,14 +46,7 @@ struct connection_helper_state {
   static const char* name;
 };
 
-behavior datagram_connection_broker(broker* self,
-                                    uint16_t port,
-                                    network::address_listing addresses,
-                                    actor system_broker);
-
 behavior connection_helper(stateful_actor<connection_helper_state>* self,
                            actor b);
 } // namespace io
 } // namespace caf
-
-#endif // CAF_IO_CONNECTION_HELPER_HPP

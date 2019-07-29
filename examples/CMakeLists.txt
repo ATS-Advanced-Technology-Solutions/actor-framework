@@ -1,4 +1,3 @@
-cmake_minimum_required(VERSION 2.8)
 project(caf_examples CXX)
 
 add_custom_target(all_examples)
@@ -8,10 +7,9 @@ include_directories(${LIBCAF_INCLUDE_DIRS})
 macro(add folder name)
   add_executable(${name} ${folder}/${name}.cpp ${ARGN})
   target_link_libraries(${name}
-                        ${LDFLAGS}
+                        ${CAF_EXTRA_LDFLAGS}
                         ${CAF_LIBRARIES}
-                        ${PTHREAD_LIBRARIES}
-                        ${WSLIB})
+                        ${PTHREAD_LIBRARIES})
   install(FILES ${folder}/${name}.cpp DESTINATION share/caf/examples/${folder})
   add_dependencies(${name} all_examples)
 endmacro()
@@ -21,15 +19,18 @@ add(. aout)
 add(. hello_world)
 
 # basic message passing primitives
-add(message_passing cell)
-add(message_passing divider)
-add(message_passing request)
-add(message_passing promises)
 add(message_passing calculator)
-add(message_passing delegating)
-add(message_passing fixed_stack)
-add(message_passing prioritizing)
+add(message_passing cell)
 add(message_passing dancing_kirby)
+add(message_passing delegating)
+add(message_passing divider)
+add(message_passing fixed_stack)
+add(message_passing promises)
+add(message_passing request)
+add(message_passing typed_calculator)
+
+# streaming API
+add(streaming integer_stream)
 
 # dynamic behavior changes using 'become'
 add(dynamic_behavior skip_messages)
@@ -54,7 +55,10 @@ add(remoting distributed_calculator)
 add(broker simple_broker)
 add(broker simple_http_broker)
 
-if(NOT CAF_NO_PROTOBUF_EXAMPLES)
+# testing DSL
+add(testing ping_pong)
+
+if(CAF_BUILD_PROTOBUF_EXAMPLES)
   find_package(Protobuf)
   if(PROTOBUF_FOUND AND PROTOBUF_PROTOC_EXECUTABLE)
     PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders "${CMAKE_CURRENT_SOURCE_DIR}/remoting/pingpong.proto")
@@ -67,7 +71,7 @@ if(NOT CAF_NO_PROTOBUF_EXAMPLES)
   endif(PROTOBUF_FOUND AND PROTOBUF_PROTOC_EXECUTABLE)
 endif()
 
-if(NOT CAF_NO_QT_EXAMPLES)
+if(CAF_BUILD_QT_EXAMPLES)
   find_package(Qt5 COMPONENTS Core Gui Widgets QUIET)
   if(Qt5_FOUND)
     message(STATUS "Found Qt5")

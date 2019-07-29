@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_MIDDLEMAN_ACTOR_HPP
-#define CAF_IO_MIDDLEMAN_ACTOR_HPP
+#pragma once
 
 #include "caf/fwd.hpp"
 #include "caf/atom.hpp"
@@ -69,12 +68,6 @@ namespace io {
 ///   (unpublish_atom, strong_actor_ptr whom, uint16_t port)
 ///   -> void
 ///
-///   // Closes `port` if it is mapped to `whom`.
-///   // whom: A published actor.
-///   // port: Used UDP port.
-///   (unpublish_udp_atom, strong_actor_ptr whom, uint16_t port)
-///   -> void
-///
 ///   // Unconditionally closes `port`, removing any actor
 ///   // published at this port.
 ///   // port: Used TCP port.
@@ -99,22 +92,13 @@ using middleman_actor =
     ::with<uint16_t>,
 
 
-    replies_to<publish_udp_atom, uint16_t, strong_actor_ptr,
-               std::set<std::string>, std::string, bool>
-    ::with<uint16_t>,
-
     replies_to<open_atom, uint16_t, std::string, bool>
     ::with<uint16_t>,
 
     replies_to<connect_atom, std::string, uint16_t>
     ::with<node_id, strong_actor_ptr, std::set<std::string>>,
 
-    replies_to<contact_atom, std::string, uint16_t>
-    ::with<node_id, strong_actor_ptr, std::set<std::string>>,
-
     reacts_to<unpublish_atom, actor_addr, uint16_t>,
-
-    reacts_to<unpublish_udp_atom, actor_addr, uint16_t>,
 
     reacts_to<close_atom, uint16_t>,
 
@@ -129,4 +113,3 @@ middleman_actor make_middleman_actor(actor_system& sys, actor db);
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_MIDDLEMAN_ACTOR_HPP

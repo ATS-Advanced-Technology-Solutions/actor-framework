@@ -322,8 +322,13 @@ struct fixture {
   actor_system system;
   scoped_actor self;
 
-  fixture() : system(cfg.add_message_type<get_state_msg>("get_state_msg")),
-              self(system) {
+  static actor_system_config& init(actor_system_config& cfg) {
+    cfg.add_message_type<get_state_msg>("get_state_msg");
+    cfg.parse(test::engine::argc(), test::engine::argv());
+    return cfg;
+  }
+
+  fixture() : system(init(cfg)), self(system) {
     // nop
   }
 
@@ -376,10 +381,11 @@ CAF_TEST_FIXTURE_SCOPE(typed_spawn_tests, fixture)
  ******************************************************************************/
 
 CAF_TEST(typed_spawns) {
-  // run test series with typed_server(1|2)
+  CAF_MESSAGE("run test series with typed_server1");
   test_typed_spawn(system.spawn(typed_server1));
   self->await_all_other_actors_done();
   CAF_MESSAGE("finished test series with `typed_server1`");
+  CAF_MESSAGE("run test series with typed_server2");
   test_typed_spawn(system.spawn(typed_server2));
   self->await_all_other_actors_done();
   CAF_MESSAGE("finished test series with `typed_server2`");
@@ -404,10 +410,10 @@ CAF_TEST(event_testee_series) {
   self->send(et, "hello again event testee!");
   self->send(et, "goodbye event testee!");
   typed_actor<replies_to<get_state_msg>::with<string>> sub_et = et;
-  set<string> iface{"caf::replies_to<get_state_msg>::with<@str>",
-                    "caf::replies_to<@str>::with<void>",
-                    "caf::replies_to<float>::with<void>",
-                    "caf::replies_to<@i32>::with<@i32>"};
+  std::set<string> iface{"caf::replies_to<get_state_msg>::with<@str>",
+                         "caf::replies_to<@str>::with<void>",
+                         "caf::replies_to<float>::with<void>",
+                         "caf::replies_to<@i32>::with<@i32>"};
   CAF_CHECK_EQUAL(join(sub_et->message_types(), ","), join(iface, ","));
   self->send(sub_et, get_state_msg{});
   // we expect three 42s

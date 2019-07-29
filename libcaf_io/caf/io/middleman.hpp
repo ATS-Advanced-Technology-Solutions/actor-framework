@@ -16,22 +16,21 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_MIDDLEMAN_HPP
-#define CAF_IO_MIDDLEMAN_HPP
+#pragma once
 
 #include <map>
 #include <vector>
 #include <memory>
 #include <thread>
 
-#include "caf/fwd.hpp"
-#include "caf/send.hpp"
-#include "caf/node_id.hpp"
-#include "caf/expected.hpp"
 #include "caf/actor_system.hpp"
+#include "caf/detail/unique_function.hpp"
+#include "caf/expected.hpp"
+#include "caf/fwd.hpp"
+#include "caf/node_id.hpp"
 #include "caf/proxy_registry.hpp"
+#include "caf/send.hpp"
 
-#include "caf/io/hook.hpp"
 #include "caf/io/broker.hpp"
 #include "caf/io/middleman_actor.hpp"
 #include "caf/io/network/multiplexer.hpp"
@@ -43,8 +42,6 @@ namespace io {
 class middleman : public actor_system::module {
 public:
   friend class ::caf::actor_system;
-
-  using hook_vector = std::vector<hook_uptr>;
 
   ~middleman() override;
 
@@ -76,22 +73,6 @@ public:
                    system().message_types(tk), port, in, reuse);
   }
 
-  /// Tries to publish `whom` at `port` and returns either an
-  /// `error` or the bound port.
-  /// @param whom Actor that should be published at `port`.
-  /// @param port Unused TCP port.
-  /// @param in The IP address to listen to or `INADDR_ANY` if `in == nullptr`.
-  /// @param reuse Create socket using `SO_REUSEADDR`.
-  /// @returns The actual port the OS uses after `bind()`. If `port == 0`
-  ///          the OS chooses a random high-level port.
-  template <class Handle>
-  expected<uint16_t> publish_udp(Handle&& whom, uint16_t port,
-                                 const char* in = nullptr, bool reuse = false) {
-    detail::type_list<typename std::decay<Handle>::type> tk;
-    return publish_udp(actor_cast<strong_actor_ptr>(std::forward<Handle>(whom)),
-                       system().message_types(tk), port, in, reuse);
-  }
-
   /// Makes *all* local groups accessible via network
   /// on address `addr` and `port`.
   /// @returns The actual port the OS uses after `bind()`. If `port == 0`
@@ -106,14 +87,6 @@ public:
   template <class Handle>
   expected<void> unpublish(const Handle& whom, uint16_t port = 0) {
     return unpublish(whom.address(), port);
-  }
-
-  /// Unpublishes `whom` by closing `port` or all assigned ports if `port == 0`.
-  /// @param whom Actor that should be unpublished at `port`.
-  /// @param port UDP port.
-  template <class Handle>
-  expected<void> unpublish_udp(const Handle& whom, uint16_t port = 0) {
-    return unpublish_udp(whom.address(), port);
   }
 
   /// Establish a new connection to the actor at `host` on given `port`.
@@ -131,21 +104,6 @@ public:
     return actor_cast<ActorHandle>(std::move(*x));
   }
 
-  /// Contacts the actor at `host` on given `port`.
-  /// @param host Valid hostname or IP address.
-  /// @param port TCP port.
-  /// @returns An `actor` to the proxy instance representing
-  ///          a remote actor or an `error`.
-  template <class ActorHandle = actor>
-  expected<ActorHandle> remote_actor_udp(std::string host, uint16_t port) {
-    detail::type_list<ActorHandle> tk;
-    auto x = remote_actor_udp(system().message_types(tk), std::move(host), port);
-    if (!x)
-      return x.error();
-    CAF_ASSERT(x && *x);
-    return actor_cast<ActorHandle>(std::move(*x));
-  }
-
   /// <group-name>@<host>:<port>
   expected<group> remote_group(const std::string& group_uri);
 
@@ -155,6 +113,11 @@ public:
   /// Returns the enclosing actor system.
   inline actor_system& system() {
     return system_;
+  }
+
+  /// Returns the systemw-wide configuration.
+  inline const actor_system_config& config() const {
+    return system_.config();
   }
 
   /// Returns a handle to the actor managing the middleman singleton.
@@ -182,23 +145,6 @@ public:
 
   /// Returns the IO backend used by this middleman.
   virtual network::multiplexer& backend() = 0;
-
-  /// Invokes the callback(s) associated with given event.
-  template <hook::event_type Event, typename... Ts>
-  void notify(Ts&&... ts) {
-    for (auto& hook : hooks_)
-      hook->handle<Event>(std::forward<Ts>(ts)...);
-  }
-
-  /// Returns whether this middleman has any hooks installed.
-  inline bool has_hook() const {
-    return !hooks_.empty();
-  }
-
-  /// Returns all installed hooks.
-  const hook_vector& hooks() const {
-    return hooks_;
-  }
 
   /// Returns the actor associated with `name` at `nid` or
   /// `invalid_actor` if `nid` is not connected or has no actor
@@ -251,8 +197,14 @@ public:
             class F = std::function<void(broker*)>, class... Ts>
   typename infer_handle_from_fun<F>::type
   spawn_broker(F fun, Ts&&... xs) {
+    using impl = infer_impl_from_fun_t<F>;
+    static constexpr bool spawnable = detail::spawnable<F, impl, Ts...>();
+    static_assert(spawnable,
+                  "cannot spawn function-based broker with given arguments");
     actor_config cfg{&backend()};
-    return system().spawn_functor<Os>(cfg, fun, std::forward<Ts>(xs)...);
+    detail::bool_token<spawnable> enabled;
+    return system().spawn_functor<Os>(enabled, cfg, fun,
+                                      std::forward<Ts>(xs)...);
   }
 
   /// Returns a new functor-based broker connected
@@ -326,11 +278,11 @@ private:
     CAF_ASSERT(ptr != nullptr);
     detail::init_fun_factory<Impl, F> fac;
     actor_config cfg{&backend()};
-    auto init_fun = fac(std::move(fun), ptr->hdl(), std::forward<Ts>(xs)...);
-    cfg.init_fun = [ptr, init_fun](local_actor* self) mutable -> behavior {
+    auto fptr = fac.make(std::move(fun), ptr->hdl(), std::forward<Ts>(xs)...);
+    fptr->hook([=](local_actor* self) mutable {
       static_cast<abstract_broker*>(self)->add_scribe(std::move(ptr));
-      return init_fun(self);
-    };
+    });
+    cfg.init_fun.assign(fptr.release());
     return system().spawn_class<Impl, Os>(cfg);
   }
 
@@ -342,13 +294,13 @@ private:
       return eptr.error();
     auto ptr = std::move(*eptr);
     detail::init_fun_factory<Impl, F> fac;
-    auto init_fun = fac(std::move(fun), std::forward<Ts>(xs)...);
     port = ptr->port();
-    actor_config cfg{&backend()};
-    cfg.init_fun = [ptr, init_fun](local_actor* self) mutable -> behavior {
+    auto fptr = fac.make(std::move(fun), std::forward<Ts>(xs)...);
+    fptr->hook([=](local_actor* self) mutable {
       static_cast<abstract_broker*>(self)->add_doorman(std::move(ptr));
-      return init_fun(self);
-    };
+    });
+    actor_config cfg{&backend()};
+    cfg.init_fun.assign(fptr.release());
     return system().spawn_class<Impl, Os>(cfg);
   }
 
@@ -361,19 +313,10 @@ private:
                              std::set<std::string> sigs,
                              uint16_t port, const char* cstr, bool ru);
 
-  expected<uint16_t> publish_udp(const strong_actor_ptr& whom,
-                                 std::set<std::string> sigs,
-                                 uint16_t port, const char* cstr, bool ru);
-
   expected<void> unpublish(const actor_addr& whom, uint16_t port);
-
-  expected<void> unpublish_udp(const actor_addr& whom, uint16_t port);
 
   expected<strong_actor_ptr> remote_actor(std::set<std::string> ifs,
                                           std::string host, uint16_t port);
-
-  expected<strong_actor_ptr> remote_actor_udp(std::set<std::string> ifs,
-                                              std::string host, uint16_t port);
 
   static int exec_slave_mode(actor_system&, const actor_system_config&);
 
@@ -385,8 +328,6 @@ private:
   std::thread thread_;
   // keeps track of "singleton-like" brokers
   std::map<atom_value, actor> named_brokers_;
-  // user-defined hooks
-  hook_vector hooks_;
   // actor offering asyncronous IO by managing this singleton instance
   middleman_actor manager_;
 };
@@ -394,4 +335,3 @@ private:
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_MIDDLEMAN_HPP

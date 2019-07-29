@@ -16,12 +16,13 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#include "caf/message.hpp"
-#include "caf/make_counted.hpp"
-
 #include "caf/detail/concatenated_tuple.hpp"
 
 #include <numeric>
+
+#include "caf/make_counted.hpp"
+#include "caf/message.hpp"
+#include "caf/raise_error.hpp"
 
 namespace caf {
 namespace detail {
@@ -52,8 +53,8 @@ auto concatenated_tuple::make(std::initializer_list<cow_ptr> xs) -> cow_ptr {
   return cow_ptr{make_counted<concatenated_tuple>(xs)};
 }
 
-message_data::cow_ptr concatenated_tuple::copy() const {
-  return cow_ptr(new concatenated_tuple(*this), false);
+concatenated_tuple* concatenated_tuple::copy() const {
+  return new concatenated_tuple(*this);
 }
 
 void* concatenated_tuple::get_mutable(size_t pos) {
@@ -76,7 +77,7 @@ uint32_t concatenated_tuple::type_token() const noexcept {
   return type_token_;
 }
 
-message_data::rtti_pair concatenated_tuple::type(size_t pos) const noexcept {
+rtti_pair concatenated_tuple::type(size_t pos) const noexcept {
   CAF_ASSERT(pos < size());
   auto selected = select(pos);
   return selected.first->type(selected.second);
@@ -106,7 +107,20 @@ error concatenated_tuple::save(size_t pos, serializer& sink) const {
   return selected.first->save(selected.second, sink);
 }
 
-std::pair<message_data*, size_t> concatenated_tuple::select(size_t pos) const {
+std::pair<message_data*, size_t> concatenated_tuple::select(size_t pos) {
+  auto idx = pos;
+  for (auto& m : data_) {
+    auto s = m->size();
+    if (idx >= s)
+      idx -= s;
+    else
+      return {m.unshared_ptr(), idx};
+  }
+  CAF_RAISE_ERROR(std::out_of_range, "concatenated_tuple::select out of range");
+}
+
+std::pair<const message_data*, size_t>
+concatenated_tuple::select(size_t pos) const {
   auto idx = pos;
   for (const auto& m : data_) {
     auto s = m->size();
@@ -115,7 +129,7 @@ std::pair<message_data*, size_t> concatenated_tuple::select(size_t pos) const {
     else
       return {m.get(), idx};
   }
-  CAF_RAISE_ERROR("out of range: concatenated_tuple::select");
+  CAF_RAISE_ERROR(std::out_of_range, "concatenated_tuple::select out of range");
 }
 
 } // namespace detail

@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_DISPOSER_HPP
-#define CAF_DETAIL_DISPOSER_HPP
+#pragma once
 
 #include <type_traits>
 
@@ -28,13 +27,13 @@ namespace detail {
 
 class disposer {
 public:
-  inline void operator()(memory_managed* ptr) const {
+  inline void operator()(memory_managed* ptr) const noexcept {
     ptr->request_deletion(false);
   }
 
   template <class T>
   typename std::enable_if<!std::is_base_of<memory_managed, T>::value>::type
-  operator()(T* ptr) const {
+  operator()(T* ptr) const noexcept {
     delete ptr;
   }
 };
@@ -42,5 +41,4 @@ public:
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_DETAIL_DISPOSER_HPP
 

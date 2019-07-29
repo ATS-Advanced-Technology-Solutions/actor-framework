@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_TYPED_BROKER_HPP
-#define CAF_IO_TYPED_BROKER_HPP
+#pragma once
 
 #include <map>
 #include <vector>
@@ -97,7 +96,7 @@ public:
     this->init_broker();
     auto bhvr = make_behavior();
     CAF_LOG_DEBUG_IF(!bhvr, "make_behavior() did not return a behavior:"
-                             << CAF_ARG(this->has_behavior()));
+                            << CAF_ARG2("alive", this->alive()));
     if (bhvr) {
       // make_behavior() did return a behavior instead of using become()
       CAF_LOG_DEBUG("make_behavior() did return a valid behavior");
@@ -120,7 +119,14 @@ public:
     actor_config cfg{this->context()};
     detail::init_fun_factory<impl, F> fac;
     cfg.init_fun = fac(std::move(fun), hdl, std::forward<Ts>(xs)...);
-    auto res = this->system().spawn_functor(cfg, fun, hdl, std::forward<Ts>(xs)...);
+    using impl = infer_impl_from_fun_t<F>;
+    static constexpr bool spawnable = detail::spawnable<F, impl, decltype(hdl),
+                                                        Ts...>();
+    static_assert(spawnable,
+                  "cannot spawn function-based broker with given arguments");
+    detail::bool_token<spawnable> enabled;
+    auto res = this->system().spawn_functor(enabled, cfg, fun, hdl,
+                                            std::forward<Ts>(xs)...);
     auto forked = static_cast<impl*>(actor_cast<abstract_actor*>(res));
     forked->move_scribe(std::move(sptr));
     return res;
@@ -172,4 +178,3 @@ protected:
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_TYPED_BROKER_HPP

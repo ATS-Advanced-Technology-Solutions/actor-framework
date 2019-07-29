@@ -19,7 +19,7 @@
 #include "caf/config.hpp"
 
 #define CAF_SUITE io_unpublish
-#include "caf/test/unit_test.hpp"
+#include "caf/test/dsl.hpp"
 
 #include <new>
 #include <thread>
@@ -53,11 +53,17 @@ public:
   }
 };
 
+struct config : actor_system_config {
+  config() {
+    load<io::middleman>();
+    if (auto err = parse(test::engine::argc(), test::engine::argv()))
+      CAF_FAIL("failed to parse config: " << to_string(err));
+  }
+};
+
 struct fixture {
   fixture() {
-    new (&system) actor_system(cfg.load<io::middleman>()
-                                  .parse(test::engine::argc(),
-                                         test::engine::argv()));
+    new (&system) actor_system(cfg);
     testee = system.spawn<dummy>();
   }
 
@@ -90,7 +96,7 @@ struct fixture {
     return result;
   }
 
-  actor_system_config cfg;
+  config cfg;
   union { actor_system system; }; // manually control ctor/dtor
   actor testee;
 };
@@ -100,7 +106,7 @@ struct fixture {
 CAF_TEST_FIXTURE_SCOPE(unpublish_tests, fixture)
 
 CAF_TEST(unpublishing) {
-  CAF_EXP_THROW(port, system.middleman().publish(testee, 0));
+  auto port = unbox(system.middleman().publish(testee, 0));
   CAF_REQUIRE(port != 0);
   CAF_MESSAGE("published actor on port " << port);
   CAF_MESSAGE("test invalid unpublish");

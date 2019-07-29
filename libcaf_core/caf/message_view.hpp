@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_MESSAGE_VIEW_HPP
-#define CAF_MESSAGE_VIEW_HPP
+#pragma once
 
 #include "caf/fwd.hpp"
 
@@ -31,6 +30,8 @@ public:
 
   virtual type_erased_tuple& content() = 0;
 
+  virtual const type_erased_tuple& content() const = 0;
+
   virtual message move_content_to_message() = 0;
 
   virtual message copy_content_to_message() const = 0;
@@ -38,4 +39,3 @@ public:
 
 } // namespace caf
 
-#endif // CAF_MESSAGE_VIEW_HPP

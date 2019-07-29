@@ -16,48 +16,42 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ACTOR_SYSTEM_HPP
-#define CAF_ACTOR_SYSTEM_HPP
+#pragma once
 
 #include <array>
-#include <mutex>
 #include <atomic>
-#include <string>
-#include <memory>
+#include <condition_variable>
 #include <cstddef>
 #include <functional>
-#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <typeinfo>
 
-#include "caf/fwd.hpp"
-#include "caf/logger.hpp"
-#include "caf/actor_cast.hpp"
-#include "caf/make_actor.hpp"
-#include "caf/actor_clock.hpp"
-#include "caf/infer_handle.hpp"
-#include "caf/actor_config.hpp"
-#include "caf/spawn_options.hpp"
-#include "caf/group_manager.hpp"
-#include "caf/is_typed_actor.hpp"
 #include "caf/abstract_actor.hpp"
+#include "caf/actor_cast.hpp"
+#include "caf/actor_clock.hpp"
+#include "caf/actor_config.hpp"
+#include "caf/actor_marker.hpp"
 #include "caf/actor_registry.hpp"
-#include "caf/string_algorithms.hpp"
-#include "caf/scoped_execution_unit.hpp"
-#include "caf/uniform_type_info_map.hpp"
 #include "caf/composable_behavior_based_actor.hpp"
-#include "caf/prohibit_top_level_spawn_marker.hpp"
-
-#include "caf/detail/spawn_fwd.hpp"
 #include "caf/detail/init_fun_factory.hpp"
+#include "caf/detail/spawn_fwd.hpp"
+#include "caf/detail/spawnable.hpp"
+#include "caf/fwd.hpp"
+#include "caf/group_manager.hpp"
+#include "caf/infer_handle.hpp"
+#include "caf/is_typed_actor.hpp"
+#include "caf/logger.hpp"
+#include "caf/make_actor.hpp"
+#include "caf/prohibit_top_level_spawn_marker.hpp"
+#include "caf/runtime_settings_map.hpp"
+#include "caf/scoped_execution_unit.hpp"
+#include "caf/spawn_options.hpp"
+#include "caf/string_algorithms.hpp"
+#include "caf/uniform_type_info_map.hpp"
 
 namespace caf {
-
-using rtti_pair = std::pair<uint16_t, const std::type_info*>;
-
-using rtti_pair_vec = std::vector<rtti_pair>;
-
-using rtti_pair_vec_triple = std::tuple<rtti_pair_vec,
-                                        rtti_pair_vec,
-                                        rtti_pair_vec>;
 
 template <class T>
 struct mpi_field_access {
@@ -138,13 +132,13 @@ public:
   }
 
   /// Returns the internal actor for dynamic spawn operations.
-  inline const strong_actor_ptr& spawn_serv() const {
+  const strong_actor_ptr& spawn_serv() const {
     return internal_actors_[internal_actor_id(atom("SpawnServ"))];
   }
 
   /// Returns the internal actor for storing the runtime configuration
   /// for this actor system.
-  inline const strong_actor_ptr& config_serv() const {
+  const strong_actor_ptr& config_serv() const {
     return internal_actors_[internal_actor_id(atom("ConfigServ"))];
   }
 
@@ -164,6 +158,9 @@ public:
     };
 
     virtual ~module();
+
+    /// Returns the human-redable name of the module.
+    const char* name() const noexcept;
 
     /// Starts any background threads needed by the module.
     virtual void start() = 0;
@@ -227,7 +224,7 @@ public:
   /// Returns whether actor handles described by `xs`
   /// can be assigned to actor handles described by `ys`.
   /// @experimental
-  inline bool assignable(const mpi& xs, const mpi& ys) const {
+  bool assignable(const mpi& xs, const mpi& ys) const {
     if (ys.empty())
       return xs.empty();
     if (xs.size() == ys.size())
@@ -325,30 +322,27 @@ public:
     return spawn<composable_behavior_based_actor<S>, Os>();
   }
 
-  /// Called by `spawn_functor` to apply static assertions and
-  /// store an initialization function in `cfg` before calling `spawn_class`.
+  /// Called by `spawn` when used to create a functor-based actor to select a
+  /// proper implementation and then delegates to `spawn_impl`.
   /// @param cfg To-be-filled config for the actor.
   /// @param fun Function object for the actor's behavior; will be moved.
   /// @param xs Arguments for `fun`.
-  template <spawn_options Os, class C, class F, class... Ts>
-  infer_handle_from_class_t<C>
-  spawn_functor_impl(actor_config& cfg, F& fun, Ts&&... xs) {
-    detail::init_fun_factory<C, F> fac;
+  /// @private
+  template <spawn_options Os = no_spawn_options, class F, class... Ts>
+  infer_handle_from_fun_t<F> spawn_functor(std::true_type, actor_config& cfg,
+                                           F& fun, Ts&&... xs) {
+    using impl = infer_impl_from_fun_t<F>;
+    detail::init_fun_factory<impl, F> fac;
     cfg.init_fun = fac(std::move(fun), std::forward<Ts>(xs)...);
-    return spawn_impl<C, Os>(cfg);
+    return spawn_impl<impl, Os>(cfg);
   }
 
-  /// Called by `spawn` when used to create a functor-based actor to select
-  /// a proper implementation and then delegates to `spawn_functor_impl`.
-  /// Should not be called by users of the library directly.
-  /// @param cfg To-be-filled config for the actor.
-  /// @param fun Function object for the actor's behavior; will be moved.
-  /// @param xs Arguments for `fun`.
+  /// Fallback no-op overload.
+  /// @private
   template <spawn_options Os = no_spawn_options, class F, class... Ts>
-  infer_handle_from_fun_t<F>
-  spawn_functor(actor_config& cfg, F& fun, Ts&&... xs) {
-    using impl = infer_impl_from_fun_t<F>;
-    return spawn_functor_impl<Os, impl>(cfg, fun, std::forward<Ts>(xs)...);
+  infer_handle_from_fun_t<F> spawn_functor(std::false_type, actor_config&, F&,
+                                           Ts&&...) {
+    return {};
   }
 
   /// Returns a new functor-based actor. The first argument must be the functor,
@@ -358,9 +352,14 @@ public:
   template <spawn_options Os = no_spawn_options, class F, class... Ts>
   infer_handle_from_fun_t<F>
   spawn(F fun, Ts&&... xs) {
-    check_invariants<infer_impl_from_fun_t<F>>();
+    using impl = infer_impl_from_fun_t<F>;
+    check_invariants<impl>();
+    static constexpr bool spawnable = detail::spawnable<F, impl, Ts...>();
+    static_assert(spawnable,
+                  "cannot spawn function-based actor with given arguments");
     actor_config cfg;
-    return spawn_functor<Os>(cfg, fun, std::forward<Ts>(xs)...);
+    return spawn_functor<Os>(detail::bool_token<spawnable>{}, cfg, fun,
+                             std::forward<Ts>(xs)...);
   }
 
   /// Returns a new actor with run-time type `name`, constructed
@@ -390,7 +389,7 @@ public:
   infer_handle_from_class_t<T>
   spawn_class_in_groups(actor_config& cfg, Iter first, Iter last, Ts&&... xs) {
     static_assert(std::is_same<infer_handle_from_class_t<T>, actor>::value,
-                  "Only dynamically typed actors can be spawned in a group.");
+                  "only dynamically-typed actors can be spawned in a group");
     check_invariants<T>();
     auto irange = make_input_range(first, last);
     cfg.groups = &irange;
@@ -404,12 +403,19 @@ public:
   infer_handle_from_fun_t<F>
   spawn_fun_in_groups(actor_config& cfg, Iter first, Iter second,
                       F& fun, Ts&&... xs) {
-    static_assert(std::is_same<infer_handle_from_fun_t<F>, actor>::value,
-                  "Only dynamically actors can be spawned in a group.");
-    check_invariants<infer_impl_from_fun_t<F>>();
+    using impl = infer_impl_from_fun_t<F>;
+    check_invariants<impl>();
+    static constexpr bool dynamically_typed = is_dynamically_typed<impl>::value;
+    static_assert(dynamically_typed,
+                  "only dynamically-typed actors can join groups");
+    static constexpr bool spawnable = detail::spawnable<F, impl, Ts...>();
+    static_assert(spawnable,
+                  "cannot spawn function-based actor with given arguments");
+    static constexpr bool enabled = dynamically_typed && spawnable;
     auto irange = make_input_range(first, second);
     cfg.groups = &irange;
-    return spawn_functor<Os>(cfg, fun, std::forward<Ts>(xs)...);
+    return spawn_functor<Os>(detail::bool_token<enabled>{}, cfg, fun,
+                             std::forward<Ts>(xs)...);
   }
 
   /// Returns a new functor-based actor subscribed to all groups in `gs`.
@@ -465,23 +471,38 @@ public:
 
   /// Returns whether this actor system calls `await_all_actors_done`
   /// in its destructor before shutting down.
-  inline bool await_actors_before_shutdown() const {
+  bool await_actors_before_shutdown() const {
     return await_actors_before_shutdown_;
   }
 
   /// Configures whether this actor system calls `await_all_actors_done`
   /// in its destructor before shutting down.
-  inline void await_actors_before_shutdown(bool x) {
+  void await_actors_before_shutdown(bool x) {
     await_actors_before_shutdown_ = x;
   }
 
   /// Returns the configuration of this actor system.
-  inline const actor_system_config& config() const {
+  const actor_system_config& config() const {
     return cfg_;
   }
 
   /// Returns the system-wide clock.
   actor_clock& clock() noexcept;
+
+  /// Returns application-specific, system-wide runtime settings.
+  runtime_settings_map& runtime_settings() {
+    return settings_;
+  }
+
+  /// Returns application-specific, system-wide runtime settings.
+  const runtime_settings_map& runtime_settings() const {
+    return settings_;
+  }
+
+  /// Returns the number of detached actors.
+  size_t detached_actors() {
+    return detached_.load();
+  }
 
   /// @cond PRIVATE
 
@@ -502,6 +523,26 @@ public:
   /// @warning must be called by thread which is about to terminate
   void thread_terminates();
 
+  template <class C, spawn_options Os, class... Ts>
+  infer_handle_from_class_t<C>
+  spawn_impl(actor_config& cfg, Ts&&... xs) {
+    static_assert(is_unbound(Os),
+                  "top-level spawns cannot have monitor or link flag");
+    // TODO: use `if constexpr` when switching to C++17
+    if (has_detach_flag(Os) || std::is_base_of<blocking_actor, C>::value)
+      cfg.flags |= abstract_actor::is_detached_flag;
+    if (has_hide_flag(Os))
+      cfg.flags |= abstract_actor::is_hidden_flag;
+    if (cfg.host == nullptr)
+      cfg.host = dummy_execution_unit();
+    CAF_SET_LOGGER_SYS(this);
+    auto res = make_actor<C>(next_actor_id(), node(), this,
+                             cfg, std::forward<Ts>(xs)...);
+    auto ptr = static_cast<C*>(actor_cast<abstract_actor*>(res));
+    ptr->launch(cfg.host, has_lazy_init_flag(Os), has_hide_flag(Os));
+    return res;
+  }
+
   /// @endcond
 
 private:
@@ -518,58 +559,73 @@ private:
                                             bool check_interface,
                                             optional<const mpi&> expected_ifs);
 
-  template <class C, spawn_options Os, class... Ts>
-  infer_handle_from_class_t<C>
-  spawn_impl(actor_config& cfg, Ts&&... xs) {
-    static_assert(is_unbound(Os),
-                  "top-level spawns cannot have monitor or link flag");
-    cfg.flags = has_priority_aware_flag(Os)
-                ? abstract_actor::is_priority_aware_flag
-                : 0;
-    if (has_detach_flag(Os) || std::is_base_of<blocking_actor, C>::value)
-      cfg.flags |= abstract_actor::is_detached_flag;
-    if (has_hide_flag(Os))
-      cfg.flags |= abstract_actor::is_hidden_flag;
-    if (!cfg.host)
-      cfg.host = dummy_execution_unit();
-    CAF_SET_LOGGER_SYS(this);
-    auto res = make_actor<C>(next_actor_id(), node(), this,
-                             cfg, std::forward<Ts>(xs)...);
-    auto ptr = static_cast<C*>(actor_cast<abstract_actor*>(res));
-    ptr->launch(cfg.host, has_lazy_init_flag(Os), has_hide_flag(Os));
-    return res;
-  }
-
   /// Sets the internal actor for dynamic spawn operations.
-  inline void spawn_serv(strong_actor_ptr x) {
+  void spawn_serv(strong_actor_ptr x) {
     internal_actors_[internal_actor_id(atom("SpawnServ"))] = std::move(x);
   }
 
   /// Sets the internal actor for storing the runtime configuration.
-  inline void config_serv(strong_actor_ptr x) {
+  void config_serv(strong_actor_ptr x) {
     internal_actors_[internal_actor_id(atom("ConfigServ"))] = std::move(x);
   }
 
+  // -- member variables -------------------------------------------------------
+
+  /// Used to generate ascending actor IDs.
   std::atomic<size_t> ids_;
+
+  /// Stores runtime type information for builtin and user-defined types.
   uniform_type_info_map types_;
+
+  /// Identifies this actor system in a distributed setting.
   node_id node_;
+
+  /// Manages log output.
   intrusive_ptr<caf::logger> logger_;
+
+  /// Maps well-known actor names to actor handles.
   actor_registry registry_;
+
+  /// Maps well-known group names to group handles.
   group_manager groups_;
+
+  /// Stores optional actor system components.
   module_array modules_;
+
+  /// Provides pseudo scheduling context to actors.
   scoped_execution_unit dummy_execution_unit_;
+
+  /// Stores whether the system should wait for running actors on shutdown.
   bool await_actors_before_shutdown_;
-  // Stores SpawnServ, ConfigServ, and StreamServ
+
+  /// Stores SpawnServ, ConfigServ, and StreamServ.
   std::array<strong_actor_ptr, num_internal_actors> internal_actors_;
-  std::atomic<size_t> detached;
-  mutable std::mutex detached_mtx;
-  mutable std::condition_variable detached_cv;
+
+  /// Counts the number of detached actors.
+  std::atomic<size_t> detached_;
+
+  /// Guards `detached`.
+  mutable std::mutex detached_mtx_;
+
+  /// Allows waiting on specific values for `detached`.
+  mutable std::condition_variable detached_cv_;
+
+  /// The system-wide, user-provided configuration.
   actor_system_config& cfg_;
-  std::mutex logger_dtor_mtx_;
-  std::condition_variable logger_dtor_cv_;
-  volatile bool logger_dtor_done_;
+
+  /// Stores whether the logger has run its destructor and stopped any thread,
+  /// file handle, etc.
+  std::atomic<bool> logger_dtor_done_;
+
+  /// Guards `logger_dtor_done_`.
+  mutable std::mutex logger_dtor_mtx_;
+
+  /// Allows waiting on specific values for `logger_dtor_done_`.
+  mutable std::condition_variable logger_dtor_cv_;
+
+  /// Stores custom, system-wide key-value pairs.
+  runtime_settings_map settings_;
 };
 
 } // namespace caf
 
-#endif // CAF_ACTOR_SYSTEM_HPP

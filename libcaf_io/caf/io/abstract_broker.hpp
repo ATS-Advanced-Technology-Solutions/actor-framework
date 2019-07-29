@@ -16,15 +16,13 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_ABSTRACT_BROKER_HPP
-#define CAF_IO_ABSTRACT_BROKER_HPP
+#pragma once
 
 #include <vector>
 #include <unordered_map>
 
 #include "caf/scheduled_actor.hpp"
 #include "caf/prohibit_top_level_spawn_marker.hpp"
-#include "caf/detail/intrusive_partitioned_list.hpp"
 
 #include "caf/io/fwd.hpp"
 #include "caf/io/accept_handle.hpp"
@@ -288,7 +286,7 @@ public:
     auto x = by_id(hdl);
     if (!x)
       return false;
-    x->stop_reading();
+    x->graceful_shutdown();
     return true;
   }
 
@@ -425,11 +423,9 @@ private:
   scribe_map scribes_;
   doorman_map doormen_;
   datagram_servant_map datagram_servants_;
-  detail::intrusive_partitioned_list<mailbox_element, detail::disposer> cache_;
   std::vector<char> dummy_wr_buf_;
 };
 
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_ABSTRACT_BROKER_HPP

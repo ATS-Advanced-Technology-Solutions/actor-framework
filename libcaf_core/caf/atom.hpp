@@ -16,14 +16,14 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ATOM_HPP
-#define CAF_ATOM_HPP
+#pragma once
 
 #include <string>
 #include <functional>
 #include <type_traits>
 
 #include "caf/detail/atom_val.hpp"
+#include "caf/fwd.hpp"
 
 namespace caf {
 
@@ -37,7 +37,10 @@ enum class atom_value : uint64_t {
 /// @relates atom_value
 std::string to_string(const atom_value& what);
 
-atom_value atom_from_string(const std::string& x);
+/// @relates atom_value
+atom_value to_lowercase(atom_value x);
+
+atom_value atom_from_string(string_view x);
 
 /// Creates an atom from given string literal.
 template <size_t Size>
@@ -66,13 +69,22 @@ struct atom_constant {
   constexpr atom_constant() {
     // nop
   }
+
   /// Returns the wrapped value.
   constexpr operator atom_value() const {
     return V;
   }
+
+  /// Returns the wrapped value as its base type.
   static constexpr uint64_t uint_value() {
     return static_cast<uint64_t>(V);
   }
+
+  /// Returns the wrapped value.
+  static constexpr atom_value get_value() {
+    return V;
+  }
+
   /// Returns an instance *of this constant* (*not* an `atom_value`).
   static const atom_constant value;
 };
@@ -103,6 +115,9 @@ using get_atom = atom_constant<atom("get")>;
 
 /// Used for request operations.
 using put_atom = atom_constant<atom("put")>;
+
+/// Used for signalizing resolved paths.
+using resolve_atom = atom_constant<atom("resolve")>;
 
 /// Used for signalizing updates, e.g., in a key-value store.
 using update_atom = atom_constant<atom("update")>;
@@ -136,6 +151,12 @@ using link_atom = atom_constant<atom("link")>;
 
 /// Used for removing networked links.
 using unlink_atom = atom_constant<atom("unlink")>;
+
+/// Used for monitor requests over network.
+using monitor_atom = atom_constant<atom("monitor")>;
+
+/// Used for removing networked monitors.
+using demonitor_atom = atom_constant<atom("demonitor")>;
 
 /// Used for publishing actors at a given port.
 using publish_atom = atom_constant<atom("publish")>;
@@ -179,6 +200,12 @@ using tick_atom = atom_constant<atom("tick")>;
 /// Used for pending out of order messages.
 using pending_atom = atom_constant<atom("pending")>;
 
+/// Used as timeout type for `timeout_msg`.
+using receive_atom = atom_constant<atom("receive")>;
+
+/// Used as timeout type for `timeout_msg`.
+using stream_atom = atom_constant<atom("stream")>;
+
 } // namespace caf
 
 namespace std {
@@ -193,4 +220,3 @@ struct hash<caf::atom_value> {
 
 } // namespace std
 
-#endif // CAF_ATOM_HPP

@@ -17,8 +17,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_OPENCL_ARGUMENTS
-#define CAF_OPENCL_ARGUMENTS
+#pragma once
 
 #include <functional>
 #include <type_traits>
@@ -27,11 +26,8 @@
 #include "caf/optional.hpp"
 
 #include "caf/opencl/mem_ref.hpp"
-#include "caf/opencl/detail/core.hpp"
 
 namespace caf {
-namespace opencl {
-
 namespace detail {
 
 template <class T, class F>
@@ -58,6 +54,8 @@ T try_apply_fun(F& fun, message& msg, const T& fallback) {
 }
 
 } // namespace detail
+
+namespace opencl {
 
 // Tag classes to mark arguments received in a messages as reference or value
 /// Arguments tagged as `val` are expected as a vector (or value in case
@@ -492,4 +490,3 @@ struct to_output_arg {
 } // namespace opencl
 } // namespace caf
 
-#endif // CAF_OPENCL_ARGUMENTS

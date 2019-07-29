@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_NETWORK_TEST_MULTIPLEXER_HPP
-#define CAF_IO_NETWORK_TEST_MULTIPLEXER_HPP
+#pragma once
 
 #include <thread>
 
@@ -368,10 +367,6 @@ private:
   pending_endpoints_map pending_endpoints_;
   datagram_data_map datagram_data_;
 
-  // extra state for making sure the test multiplexer is not used in a
-  // multithreaded setup
-  std::thread::id tid_;
-
   // Configures shortcuts for runnables.
   size_t inline_runnables_;
 
@@ -385,4 +380,3 @@ private:
 } // namespace io
 } // namespace caf
 
-#endif // CAF_IO_NETWORK_TEST_MULTIPLEXER_HPP

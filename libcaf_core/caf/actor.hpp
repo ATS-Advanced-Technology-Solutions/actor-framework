@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_ACTOR_HPP
-#define CAF_ACTOR_HPP
+#pragma once
 
 #include <string>
 #include <cstddef>
@@ -32,7 +31,6 @@
 #include "caf/actor_marker.hpp"
 #include "caf/abstract_actor.hpp"
 #include "caf/actor_control_block.hpp"
-#include "caf/unsafe_actor_handle_init.hpp"
 
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/type_traits.hpp"
@@ -82,8 +80,6 @@ public:
   actor(std::nullptr_t);
 
   actor(const scoped_actor&);
-
-  explicit actor(const unsafe_actor_handle_init_t&) CAF_DEPRECATED;
 
   template <class T,
             class = typename std::enable_if<
@@ -143,12 +139,6 @@ public:
 
   /// Exchange content of `*this` and `other`.
   void swap(actor& other) noexcept;
-
-  /// Queries whether this object was constructed using
-  /// `unsafe_actor_handle_init` or is in moved-from state.
-  bool unsafe() const CAF_DEPRECATED {
-    return !ptr_;
-  }
 
   /// @cond PRIVATE
 
@@ -235,4 +225,3 @@ struct hash<caf::actor> {
 };
 } // namespace std
 
-#endif // CAF_ACTOR_HPP

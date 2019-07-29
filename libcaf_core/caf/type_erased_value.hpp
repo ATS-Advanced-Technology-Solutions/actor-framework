@@ -16,15 +16,15 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_TYPE_ERASED_VALUE_HPP
-#define CAF_TYPE_ERASED_VALUE_HPP
+#pragma once
 
 #include <cstdint>
 #include <typeinfo>
 #include <functional>
 
-#include "caf/fwd.hpp"
 #include "caf/error.hpp"
+#include "caf/fwd.hpp"
+#include "caf/rtti_pair.hpp"
 #include "caf/type_nr.hpp"
 
 namespace caf {
@@ -32,10 +32,6 @@ namespace caf {
 /// Represents a single type-erased value.
 class type_erased_value {
 public:
-  // -- member types -----------------------------------------------------------
-
-  using rtti_pair = std::pair<uint16_t, const std::type_info*>;
-
   // -- constructors, destructors, and assignment operators --------------------
 
   virtual ~type_erased_value();
@@ -113,4 +109,3 @@ inline std::string to_string(const type_erased_value& x) {
 
 } // namespace caf
 
-#endif // CAF_TYPE_ERASED_VALUE_HPP

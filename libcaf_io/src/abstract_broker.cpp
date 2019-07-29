@@ -46,6 +46,7 @@ void abstract_broker::enqueue(mailbox_element_ptr ptr, execution_unit*) {
 }
 
 void abstract_broker::launch(execution_unit* eu, bool lazy, bool hide) {
+  CAF_PUSH_AID_FROM_PTR(this);
   CAF_ASSERT(eu != nullptr);
   CAF_ASSERT(eu == &backend());
   CAF_LOG_TRACE(CAF_ARG(lazy) << CAF_ARG(hide));
@@ -64,7 +65,6 @@ bool abstract_broker::cleanup(error&& reason, execution_unit* host) {
   CAF_ASSERT(doormen_.empty());
   CAF_ASSERT(scribes_.empty());
   CAF_ASSERT(datagram_servants_.empty());
-  cache_.clear();
   return local_actor::cleanup(std::move(reason), host);
 }
 
@@ -88,9 +88,11 @@ void abstract_broker::ack_writes(connection_handle hdl, bool enable) {
 }
 
 std::vector<char>& abstract_broker::wr_buf(connection_handle hdl) {
+  CAF_ASSERT(hdl != invalid_connection_handle);
   auto x = by_id(hdl);
   if (!x) {
-    CAF_LOG_ERROR("tried to access wr_buf() of an unknown connection_handle");
+    CAF_LOG_ERROR("tried to access wr_buf() of an unknown connection_handle:"
+                  << CAF_ARG(hdl));
     return dummy_wr_buf_;
   }
   return x->wr_buf();
@@ -340,18 +342,14 @@ bool abstract_broker::remove_endpoint(datagram_handle hdl) {
 
 void abstract_broker::close_all() {
   CAF_LOG_TRACE("");
-  while (!doormen_.empty()) {
-    // stop_reading will remove the doorman from doormen_
-    doormen_.begin()->second->stop_reading();
-  }
-  while (!scribes_.empty()) {
-    // stop_reading will remove the scribe from scribes_
-    scribes_.begin()->second->stop_reading();
-  }
-  while (!datagram_servants_.empty()) {
-    // stop reading will remove dgram servants from datagram_servants_
-    datagram_servants_.begin()->second->stop_reading();
-  }
+  // Calling graceful_shutdown causes the objects to detach from the broker by
+  // removing from the container.
+  while (!doormen_.empty())
+    doormen_.begin()->second->graceful_shutdown();
+  while (!scribes_.empty())
+    scribes_.begin()->second->graceful_shutdown();
+  while (!datagram_servants_.empty())
+    datagram_servants_.begin()->second->graceful_shutdown();
 }
 
 resumable::subtype_t abstract_broker::subtype() const {

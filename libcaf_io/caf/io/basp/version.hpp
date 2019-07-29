@@ -16,8 +16,7 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_IO_BASP_VERSION_HPP
-#define CAF_IO_BASP_VERSION_HPP
+#pragma once
 
 #include <cstdint>
 
@@ -27,15 +26,11 @@ namespace basp {
 
 /// @addtogroup BASP
 
-/// The current BASP version. Different BASP versions will not
-/// be able to exchange messages.
-constexpr uint64_t version = 2;
+/// The current BASP version. Note: BASP is not backwards compatible.
+constexpr uint64_t version = 3;
 
 /// @}
 
 } // namespace basp
 } // namespace io
 } // namespace caf
-
-#endif // CAF_IO_BASP_VERSION_HPP
-

@@ -16,17 +16,19 @@
  * http://www.boost.org/LICENSE_1_0.txt.                                      *
  ******************************************************************************/
 
-#ifndef CAF_DETAIL_STRINGIFICATION_INSPECTOR_HPP
-#define CAF_DETAIL_STRINGIFICATION_INSPECTOR_HPP
+#pragma once
 
+#include <chrono>
 #include <string>
-#include <vector>
-#include <functional>
 #include <type_traits>
+#include <vector>
 
 #include "caf/atom.hpp"
-#include "caf/none.hpp"
 #include "caf/error.hpp"
+#include "caf/none.hpp"
+#include "caf/string_view.hpp"
+#include "caf/timespan.hpp"
+#include "caf/timestamp.hpp"
 
 #include "caf/meta/type_name.hpp"
 #include "caf/meta/omittable.hpp"
@@ -35,8 +37,9 @@
 #include "caf/meta/omittable_if_none.hpp"
 #include "caf/meta/omittable_if_empty.hpp"
 
-#include "caf/detail/int_list.hpp"
+#include "caf/detail/append_hex.hpp"
 #include "caf/detail/apply_args.hpp"
+#include "caf/detail/int_list.hpp"
 #include "caf/detail/type_traits.hpp"
 
 namespace caf {
@@ -49,6 +52,7 @@ public:
   using result_type = void;
 
   static constexpr bool reads_state = true;
+  static constexpr bool writes_state = false;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -60,7 +64,7 @@ public:
 
   template <class... Ts>
   void operator()(Ts&&... xs) {
-    traverse(std::forward<Ts>(xs)...);
+    traverse(xs...);
   }
 
   /// Prints a separator to the result string.
@@ -72,20 +76,39 @@ public:
 
   void consume(atom_value& x);
 
-  void consume(const char* cstr);
+  void consume(string_view str);
 
-  void consume_hex(const uint8_t* xs, size_t n);
+  void consume(timespan& x);
+
+  void consume(timestamp& x);
+
+  template <class Clock, class Duration>
+  void consume(std::chrono::time_point<Clock, Duration>& x) {
+    timestamp tmp{std::chrono::duration_cast<timespan>(x.time_since_epoch())};
+    consume(tmp);
+  }
+
+  template <class Rep, class Period>
+  void consume(std::chrono::duration<Rep, Period>& x) {
+    auto tmp = std::chrono::duration_cast<timespan>(x);
+    consume(tmp);
+  }
 
   inline void consume(bool& x) {
     result_ += x ? "true" : "false";
   }
 
-  inline void consume(char* cstr) {
-    consume(const_cast<const char*>(cstr));
+  inline void consume(const char* cstr) {
+    if (cstr == nullptr) {
+      result_ += "null";
+    } else {
+      string_view tmp{cstr, strlen(cstr)};
+      consume(tmp);
+    }
   }
 
-  inline void consume(std::string& str) {
-    consume(str.c_str());
+  inline void consume(char* cstr) {
+    consume(const_cast<const char*>(cstr));
   }
 
   template <class T>
@@ -133,6 +156,7 @@ public:
   template <class T>
   enable_if_t<is_iterable<T>::value
               && !is_inspectable<stringification_inspector, T>::value
+              && !std::is_convertible<T, string_view>::value
               && !has_to_string<T>::value>
   consume(T& xs) {
     result_ += '[';
@@ -142,6 +166,17 @@ public:
       sep();
       consume(deconst(*i));
     }
+    result_ += ']';
+  }
+
+  template <class T>
+  enable_if_t<has_peek_all<T>::value
+              && !is_iterable<T>::value // pick begin()/end() over peek_all
+              && !is_inspectable<stringification_inspector, T>::value
+              && !has_to_string<T>::value>
+  consume(T& xs) {
+    result_ += '[';
+    xs.peek_all(*this);
     result_ += ']';
   }
 
@@ -166,7 +201,8 @@ public:
   }
 
   template <class T>
-  enable_if_tt<std::is_pointer<T>> consume(T ptr) {
+  enable_if_t<!std::is_same<decay_t<T>, void>::value>
+  consume(T*& ptr) {
     if (ptr) {
       result_ += '*';
       consume(*ptr);
@@ -175,67 +211,128 @@ public:
     }
   }
 
+  inline void consume(const void* ptr) {
+    result_ += "0x";
+    auto int_val = reinterpret_cast<intptr_t>(ptr);
+    consume(int_val);
+  }
+
+  /// Print duration types with nanosecond resolution.
+  template <class Rep>
+  void consume(std::chrono::duration<Rep, std::nano>& x) {
+    result_ += std::to_string(x.count());
+    result_ += "ns";
+  }
+
+  /// Print duration types with microsecond resolution.
+  template <class Rep>
+  void consume(std::chrono::duration<Rep, std::micro>& x) {
+    result_ += std::to_string(x.count());
+    result_ += "us";
+  }
+
+  /// Print duration types with millisecond resolution.
+  template <class Rep>
+  void consume(std::chrono::duration<Rep, std::milli>& x) {
+    result_ += std::to_string(x.count());
+    result_ += "ms";
+  }
+
+  /// Print duration types with second resolution.
+  template <class Rep>
+  void consume(std::chrono::duration<Rep, std::ratio<1>>& x) {
+    result_ += std::to_string(x.count());
+    result_ += "s";
+  }
+
+  /// Print duration types with minute resolution.
+  template <class Rep>
+  void consume(std::chrono::duration<Rep, std::ratio<60>>& x) {
+    result_ += std::to_string(x.count());
+    result_ += "min";
+  }
+
+  /// Print duration types with hour resolution.
+  template <class Rep>
+  void consume(std::chrono::duration<Rep, std::ratio<3600>>& x) {
+    result_ += std::to_string(x.count());
+    result_ += "h";
+  }
+
   /// Fallback printing `<unprintable>`.
   template <class T>
   enable_if_t<
     !is_iterable<T>::value
+    && !has_peek_all<T>::value
     && !std::is_pointer<T>::value
     && !is_inspectable<stringification_inspector, T>::value
     && !std::is_arithmetic<T>::value
+    && !std::is_convertible<T, string_view>::value
     && !has_to_string<T>::value>
   consume(T&) {
     result_ += "<unprintable>";
   }
 
   template <class T, class... Ts>
-  void traverse(meta::hex_formatted_t, T& x, Ts&&... xs) {
+  void traverse(const meta::hex_formatted_t&, const T& x, const Ts&... xs) {
     sep();
-    consume_hex(reinterpret_cast<uint8_t*>(deconst(x).data()), x.size());
-    traverse(std::forward<Ts>(xs)...);
+    append_hex(result_, reinterpret_cast<uint8_t*>(deconst(x).data()),
+               x.size());
+    traverse(xs...);
   }
 
   template <class T, class... Ts>
-  void traverse(meta::omittable_if_none_t, T& x, Ts&&... xs) {
+  void traverse(const meta::omittable_if_none_t&, const T& x, const Ts&... xs) {
     if (x != none) {
       sep();
       consume(x);
     }
-    traverse(std::forward<Ts>(xs)...);
+    traverse(xs...);
   }
 
   template <class T, class... Ts>
-  void traverse(meta::omittable_if_empty_t, T& x, Ts&&... xs) {
+  void traverse(const meta::omittable_if_empty_t&, const T& x,
+                const Ts&... xs) {
     if (!x.empty()) {
       sep();
       consume(x);
     }
-    traverse(std::forward<Ts>(xs)...);
+    traverse(xs...);
   }
 
   template <class T, class... Ts>
-  void traverse(meta::omittable_t, T&, Ts&&... xs) {
-    traverse(std::forward<Ts>(xs)...);
+  void traverse(const meta::omittable_t&, const T&, const Ts&... xs) {
+    traverse(xs...);
   }
 
   template <class... Ts>
-  void traverse(meta::type_name_t x, Ts&&... xs) {
+  void traverse(const meta::type_name_t& x, const Ts&... xs) {
     sep();
     result_ += x.value;
     result_ += '(';
-    traverse(std::forward<Ts>(xs)...);
+    traverse(xs...);
     result_ += ')';
   }
 
   template <class... Ts>
-  void traverse(const meta::annotation&, Ts&&... xs) {
-    traverse(std::forward<Ts>(xs)...);
+  void traverse(const meta::annotation&, const Ts&... xs) {
+    traverse(xs...);
   }
 
   template <class T, class... Ts>
-  enable_if_t<!meta::is_annotation<T>::value> traverse(T&& x, Ts&&... xs) {
+  enable_if_t<!meta::is_annotation<T>::value && !is_callable<T>::value>
+  traverse(const T& x, const Ts&... xs) {
     sep();
     consume(deconst(x));
-    traverse(std::forward<Ts>(xs)...);
+    traverse(xs...);
+  }
+
+  template <class T, class... Ts>
+  enable_if_t<!meta::is_annotation<T>::value && is_callable<T>::value>
+  traverse(const T&, const Ts&... xs) {
+    sep();
+    result_ += "<fun>";
+    traverse(xs...);
   }
 
 private:
@@ -250,4 +347,3 @@ private:
 } // namespace detail
 } // namespace caf
 
-#endif // CAF_DETAIL_STRINGIFICATION_INSPECTOR_HPP

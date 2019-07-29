@@ -19,7 +19,7 @@
 #include "caf/config.hpp"
 
 #define CAF_SUITE io_remote_spawn
-#include "caf/test/unit_test.hpp"
+#include "caf/test/dsl.hpp"
 
 #include <thread>
 #include <string>
@@ -53,6 +53,24 @@ behavior calculator_fun(event_based_actor*) {
   };
 }
 
+class calculator_class : public event_based_actor {
+public:
+  calculator_class(actor_config& cfg) : event_based_actor(cfg) {
+    // nop
+  }
+
+  behavior make_behavior() override {
+    return {
+      [](add_atom, int a, int b) {
+        return a + b;
+      },
+      [](sub_atom, int a, int b) {
+        return a - b;
+      }
+    };
+  }
+};
+
 // function-based, statically typed, event-based API
 calculator::behavior_type typed_calculator_fun() {
   return {
@@ -69,6 +87,7 @@ struct config : actor_system_config {
   config(int argc, char** argv) {
     parse(argc, argv);
     load<io::middleman>();
+    add_actor_type<calculator_class>("calculator-class");
     add_actor_type("calculator", calculator_fun);
     add_actor_type("typed_calculator", typed_calculator_fun);
   }
@@ -76,13 +95,17 @@ struct config : actor_system_config {
 
 void run_client(int argc, char** argv, uint16_t port) {
   config cfg{argc, argv};
-  actor_system system{cfg};
-  auto& mm = system.middleman();
+  actor_system sys{cfg};
+  scoped_actor self{sys};
+  auto& mm = sys.middleman();
   auto nid = mm.connect("localhost", port);
   CAF_REQUIRE(nid);
-  CAF_REQUIRE_NOT_EQUAL(system.node(), *nid);
+  CAF_REQUIRE_NOT_EQUAL(sys.node(), *nid);
   auto calc = mm.remote_spawn<calculator>(*nid, "calculator", make_message());
-  CAF_REQUIRE_EQUAL(calc, sec::unexpected_actor_messaging_interface);
+  CAF_REQUIRE(!calc);
+  CAF_REQUIRE_EQUAL(calc.error().category(), atom("system"));
+  CAF_REQUIRE_EQUAL(static_cast<sec>(calc.error().code()),
+                    sec::unexpected_actor_messaging_interface);
   calc = mm.remote_spawn<calculator>(*nid, "typed_calculator", make_message());
   CAF_REQUIRE(calc);
   auto f1 = make_function_view(*calc);
@@ -90,13 +113,23 @@ void run_client(int argc, char** argv, uint16_t port) {
   CAF_REQUIRE_EQUAL(f1(sub_atom::value, 10, 20), -10);
   f1.reset();
   anon_send_exit(*calc, exit_reason::kill);
+  auto dyn_calc = unbox(mm.remote_spawn<actor>(*nid, "calculator-class", make_message()));
+  CAF_REQUIRE(dyn_calc);
+  self->request(dyn_calc, infinite, add_atom::value, 10, 20).receive(
+    [](int result) {
+      CAF_CHECK_EQUAL(result, 30);
+    },
+    [&](const error& err) {
+      CAF_FAIL("error: " << sys.render(err));
+    });
+  anon_send_exit(dyn_calc, exit_reason::kill);
   mm.close(port);
 }
 
 void run_server(int argc, char** argv) {
   config cfg{argc, argv};
   actor_system system{cfg};
-  CAF_EXP_THROW(port, system.middleman().open(0));
+  auto port = unbox(system.middleman().open(0));
   std::thread child{[=] { run_client(argc, argv, port); }};
   child.join();
 }
