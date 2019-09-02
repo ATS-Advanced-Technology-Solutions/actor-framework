@@ -33,29 +33,58 @@
 #include "caf/detail/type_list.hpp"
 
 #define CAF_HAS_MEMBER_TRAIT(name)                                             \
-template <class T>                                                             \
-struct has_##name##_member {                                                   \
-  template <class U>                                                           \
-  static auto sfinae(U* x) -> decltype(x->name(), std::true_type());           \
+  template <class T>                                                           \
+  class has_##name##_member {                                                  \
+  private:                                                                     \
+    template <class U>                                                         \
+    static auto sfinae(U* x) -> decltype(x->name(), std::true_type());         \
                                                                                \
-  template <class U>                                                           \
-  static auto sfinae(...) -> std::false_type;                                  \
+    template <class U>                                                         \
+    static auto sfinae(...) -> std::false_type;                                \
                                                                                \
-  using type = decltype(sfinae<T>(nullptr));                                   \
-  static constexpr bool value = type::value;                                   \
-}
+    using sfinae_type = decltype(sfinae<T>(nullptr));                          \
+                                                                               \
+  public:                                                                      \
+    static constexpr bool value = sfinae_type::value;                          \
+  }
+
+#define CAF_HAS_ALIAS_TRAIT(name)                                              \
+  template <class T>                                                           \
+  class has_##name##_alias {                                                   \
+  private:                                                                     \
+    template <class C>                                                         \
+    static std::true_type sfinae(typename C::name*);                           \
+                                                                               \
+    template <class>                                                           \
+    static std::false_type sfinae(...);                                        \
+                                                                               \
+    using sfinae_type = decltype(sfinae<T>(nullptr));                          \
+                                                                               \
+  public:                                                                      \
+    static constexpr bool value = sfinae_type::value;                          \
+  }
 
 namespace caf {
 namespace detail {
 
+// -- backport of C++14 additions ----------------------------------------------
+
 template <class T>
 using decay_t = typename std::decay<T>::type;
+
+template <bool B, class T, class F>
+using conditional_t = typename std::conditional<B, T, F>::type;
 
 template <bool V, class T = void>
 using enable_if_t = typename std::enable_if<V, T>::type;
 
+// -- custom traits ------------------------------------------------------------
+
 template <class Trait, class T = void>
 using enable_if_tt = typename std::enable_if<Trait::value, T>::type;
+
+template <class T>
+using remove_reference_t = typename std::remove_reference<T>::type;
 
 /// Checks whether `T` is inspectable by `Inspector`.
 template <class Inspector, class T>
@@ -676,10 +705,13 @@ template <class T>
 struct is_expected<expected<T>> : std::true_type {};
 
 // Checks whether `T` and `U` are integers of the same size and signedness.
+// clang-format off
 template <class T, class U,
           bool Enable = std::is_integral<T>::value
                         && std::is_integral<U>::value
-                        && !std::is_same<T, bool>::value>
+                        && !std::is_same<T, bool>::value
+                        && !std::is_same<U, bool>::value>
+// clang-format on
 struct is_equal_int_type {
   static constexpr bool value = sizeof(T) == sizeof(U)
                                 && std::is_signed<T>::value
@@ -705,6 +737,56 @@ struct is_same_ish
 template <class>
 struct always_false : std::false_type {};
 
+/// Utility trait for removing const inside a `map<K, V>::value_type`.
+template <class T>
+struct deconst_kvp {
+  using type = T;
+};
+
+template <class K, class V>
+struct deconst_kvp<std::pair<const K, V>> {
+  using type = std::pair<K, V>;
+};
+
+template <class T>
+using deconst_kvp_t = typename deconst_kvp<T>::type;
+
+/// Utility trait for checking whether T is a `std::pair`.
+template <class T>
+struct is_pair : std::false_type {};
+
+/// Utility trait for checking whether T is a `std::pair`.
+template <class First, class Second>
+struct is_pair<std::pair<First, Second>> : std::true_type {};
+
+// -- traits to check for STL-style type aliases -------------------------------
+
+CAF_HAS_ALIAS_TRAIT(value_type);
+
+CAF_HAS_ALIAS_TRAIT(key_type);
+
+CAF_HAS_ALIAS_TRAIT(mapped_type);
+
+// -- constexpr functions for use in enable_if & friends -----------------------
+
+/// Checks whether T behaves like `std::map`.
+template <class T>
+struct is_map_like {
+  static constexpr bool value = is_iterable<T>::value
+                                && has_key_type_alias<T>::value
+                                && has_mapped_type_alias<T>::value;
+};
+
+/// Checks whether T behaves like `std::vector`, `std::list`, or `std::set`.
+template <class T>
+struct is_list_like {
+  static constexpr bool value = is_iterable<T>::value
+                                && has_value_type_alias<T>::value
+                                && !has_mapped_type_alias<T>::value;
+};
+
 } // namespace detail
 } // namespace caf
 
+#undef CAF_HAS_MEMBER_TRAIT
+#undef CAF_HAS_ALIAS_TRAIT

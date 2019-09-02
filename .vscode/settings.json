@@ -13,7 +13,7 @@
 
    // CMAKE CONFIGURATION SECTION
    // cmake install prefix
-   "cmake.installPrefix": "${workspaceRoot}/../install/caf",
+   "cmake.installPrefix": "${workspaceRoot}/install/caf",
     
    // sets additional options to be passed to the CMake command line when configuring the project.
    // Each entry will correspond to a -D argument to CMake.

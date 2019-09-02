@@ -20,13 +20,17 @@
 
 #include <chrono>
 #include <cstdint>
+#include <iosfwd>
+#include <iterator>
 #include <map>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 
 #include "caf/atom.hpp"
 #include "caf/detail/bounds_checker.hpp"
+#include "caf/detail/move_if_not_ptr.hpp"
 #include "caf/detail/type_traits.hpp"
 #include "caf/dictionary.hpp"
 #include "caf/fwd.hpp"
@@ -127,22 +131,22 @@ public:
   const char* type_name() const noexcept;
 
   /// Returns the underlying variant.
-  inline variant_type& get_data() {
+  variant_type& get_data() {
     return data_;
   }
 
   /// Returns the underlying variant.
-  inline const variant_type& get_data() const {
+  const variant_type& get_data() const {
     return data_;
   }
 
   /// Returns a pointer to the underlying variant.
-  inline variant_type* get_data_ptr() {
+  variant_type* get_data_ptr() {
     return &data_;
   }
 
   /// Returns a pointer to the underlying variant.
-  inline const variant_type* get_data_ptr() const {
+  const variant_type* get_data_ptr() const {
     return &data_;
   }
 
@@ -153,16 +157,20 @@ private:
 
   // -- auto conversion of related types ---------------------------------------
 
-  inline void set(bool x) {
+  void set(bool x) {
     data_ = x;
   }
 
-  inline void set(float x) {
+  void set(float x) {
     data_ = static_cast<double>(x);
   }
 
-  inline void set(const char* x) {
+  void set(const char* x) {
     data_ = std::string{x};
+  }
+
+  void set(string_view x) {
+    data_ = std::string{x.begin(), x.end()};
   }
 
   template <class T>
@@ -170,6 +178,31 @@ private:
                                         list, dictionary>::value>
   set(T x) {
     data_ = std::move(x);
+  }
+
+  template <class T>
+  void set_range(T& xs, std::true_type) {
+    auto& dict = as_dictionary();
+    dict.clear();
+    for (auto& kvp : xs)
+      dict.emplace(kvp.first, std::move(kvp.second));
+  }
+
+  template <class T>
+  void set_range(T& xs, std::false_type) {
+    auto& ls = as_list();
+    ls.clear();
+    ls.insert(ls.end(), std::make_move_iterator(xs.begin()),
+              std::make_move_iterator(xs.end()));
+  }
+
+  template <class T>
+  detail::enable_if_t<detail::is_iterable<T>::value
+                      && !detail::is_one_of<T, string, list, dictionary>::value>
+  set(T xs) {
+    using value_type = typename T::value_type;
+    detail::bool_token<detail::is_pair<value_type>::value> is_map_type;
+    set_range(xs, is_map_type);
   }
 
   template <class T>
@@ -232,7 +265,7 @@ struct sum_type_access<config_value> {
 
   template <class U, int Pos>
   static bool is(const config_value& x, sum_type_token<U, Pos> token) {
-    return x.get_data().is(token.pos);
+    return x.get_data().is(pos(token));
   }
 
   template <class U>
@@ -242,7 +275,7 @@ struct sum_type_access<config_value> {
 
   template <class U, int Pos>
   static U& get(config_value& x, sum_type_token<U, Pos> token) {
-    return x.get_data().get(token.pos);
+    return x.get_data().get(pos(token));
   }
 
   template <class U>
@@ -252,7 +285,7 @@ struct sum_type_access<config_value> {
 
   template <class U, int Pos>
   static const U& get(const config_value& x, sum_type_token<U, Pos> token) {
-    return x.get_data().get(token.pos);
+    return x.get_data().get(pos(token));
   }
 
   template <class U>
@@ -356,6 +389,77 @@ struct config_value_access<std::vector<T>> {
   }
 };
 
+/// Implements automagic unboxing of `std::tuple<Ts...>` from a heterogeneous
+///`config_value::list`.
+/// @relates config_value
+template <class... Ts>
+struct config_value_access<std::tuple<Ts...>> {
+  using tuple_type = std::tuple<Ts...>;
+
+  static constexpr bool specialized = true;
+
+  static bool is(const config_value& x) {
+    if (auto lst = caf::get_if<config_value::list>(&x)) {
+      if (lst->size() != sizeof...(Ts))
+        return false;
+      return rec_is(*lst, detail::int_token<0>(), detail::type_list<Ts...>());
+    }
+    return false;
+  }
+
+  static optional<tuple_type> get_if(const config_value* x) {
+    if (auto lst = caf::get_if<config_value::list>(x)) {
+      if (lst->size() != sizeof...(Ts))
+        return none;
+      tuple_type result;
+      if (rec_get(*lst, result, detail::int_token<0>(),
+                  detail::type_list<Ts...>()))
+        return result;
+    }
+    return none;
+  }
+
+  static tuple_type get(const config_value& x) {
+    if (auto result = get_if(&x))
+      return std::move(*result);
+    CAF_RAISE_ERROR("invalid type found");
+  }
+
+private:
+  template <int Pos>
+  static bool rec_is(const config_value::list&, detail::int_token<Pos>,
+                     detail::type_list<>) {
+    // End of recursion.
+    return true;
+  }
+
+  template <int Pos, class U, class... Us>
+  static bool rec_is(const config_value::list& xs, detail::int_token<Pos>,
+                     detail::type_list<U, Us...>) {
+    if (!holds_alternative<U>(xs[Pos]))
+      return false;
+    return rec_is(xs, detail::int_token<Pos + 1>(), detail::type_list<Us...>());
+  }
+
+  template <int Pos>
+  static bool rec_get(const config_value::list&, tuple_type&,
+                      detail::int_token<Pos>, detail::type_list<>) {
+    // End of recursion.
+    return true;
+  }
+
+  template <int Pos, class U, class... Us>
+  static bool rec_get(const config_value::list& xs, tuple_type& result,
+                      detail::int_token<Pos>, detail::type_list<U, Us...>) {
+    if (auto value = caf::get_if<U>(&xs[Pos])) {
+      std::get<Pos>(result) = detail::move_if_not_ptr(value);
+      return rec_get(xs, result, detail::int_token<Pos + 1>(),
+                     detail::type_list<Us...>());
+    }
+    return false;
+  }
+};
+
 /// Implements automagic unboxing of `dictionary<V>` from a homogeneous
 /// `config_value::dictionary`.
 /// @relates config_value
@@ -421,6 +525,9 @@ inline bool operator!=(const config_value& x, const config_value& y) {
 
 /// @relates config_value
 std::string to_string(const config_value& x);
+
+/// @relates config_value
+std::ostream& operator<<(std::ostream& out, const config_value& x);
 
 template <class... Ts>
 config_value make_config_value_list(Ts&&... xs) {

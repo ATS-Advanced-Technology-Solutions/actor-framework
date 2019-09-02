@@ -20,7 +20,6 @@
 
 #include "caf/actor_system.hpp"
 #include "caf/io/basp/message_queue.hpp"
-#include "caf/io/basp/worker_hub.hpp"
 #include "caf/proxy_registry.hpp"
 #include "caf/scheduler/abstract_coordinator.hpp"
 
@@ -30,12 +29,8 @@ namespace basp {
 
 // -- constructors, destructors, and assignment operators ----------------------
 
-worker::worker(worker_hub& hub, message_queue& queue, proxy_registry& proxies)
-  : next_(nullptr),
-    hub_(&hub),
-    queue_(&queue),
-    proxies_(&proxies),
-    system_(&proxies.system()) {
+worker::worker(hub_type& hub, message_queue& queue, proxy_registry& proxies)
+  : hub_(&hub), queue_(&queue), proxies_(&proxies), system_(&proxies.system()) {
   CAF_IGNORE_UNUSED(pad_);
 }
 
@@ -60,23 +55,11 @@ void worker::launch(const node_id& last_hop, const basp::header& hdr,
 
 // -- implementation of resumable ----------------------------------------------
 
-resumable::subtype_t worker::subtype() const {
-  return resumable::function_object;
-}
-
 resumable::resume_result worker::resume(execution_unit* ctx, size_t) {
   ctx->proxy_registry_ptr(proxies_);
   handle_remote_message(ctx);
   hub_->push(this);
   return resumable::awaiting_message;
-}
-
-void worker::intrusive_ptr_add_ref_impl() {
-  ref();
-}
-
-void worker::intrusive_ptr_release_impl() {
-  deref();
 }
 
 } // namespace basp

@@ -105,7 +105,12 @@ log_type make_log(Ts&&... xs) {
   return log_type{std::forward<Ts>(xs)...};
 }
 
-const char* ini0 = R"(
+// Tests basic functionality.
+const auto ini0 = R"(
+[1group]
+1value=321
+[_foo]
+_bar=11
 [logger]
 padding= 10
 file-name = "foobar.ini" ; our file name
@@ -138,7 +143,18 @@ tcp://localhost:8080
    >,<udp://remotehost?trust=false>]
 )";
 
+// clang-format off
 const auto ini0_log = make_log(
+  "key: 1group",
+  "{",
+    "key: 1value",
+    "value (integer): 321",
+  "}",
+  "key: _foo",
+  "{",
+    "key: _bar",
+    "value (integer): 11",
+  "}",
   "key: logger",
   "{",
     "key: padding",
@@ -186,6 +202,53 @@ const auto ini0_log = make_log(
     "]",
   "}"
 );
+// clang-format on
+
+// Tests nested parameters.
+const auto ini1 = R"(
+foo {
+  bar = {
+    value1 = 1
+  }
+  value2 = 2
+}
+[bar.foo]
+value3 = 3
+)";
+
+// clang-format off
+const auto ini1_log = make_log(
+  "key: global",
+  "{",
+    "key: foo",
+    "{",
+      "key: bar",
+      "{",
+        "key: value1",
+        "value (integer): 1",
+      "}",
+      "key: value2",
+      "value (integer): 2",
+    "}",
+  "}",
+  "key: bar",
+  "{",
+    "key: foo",
+    "{",
+      "key: value3",
+      "value (integer): 3",
+    "}",
+  "}"
+);
+// clang-format on
+
+const auto ini2 = "#";
+
+const auto ini2_log = make_log();
+
+const auto ini3 = "; foobar\n!";
+
+const auto ini3_log = make_log();
 
 } // namespace <anonymous>
 
@@ -206,6 +269,12 @@ CAF_TEST(section with valid key-value pairs) {
   CAF_CHECK_EQUAL(parse("  [  foo  ]  "), make_log("key: foo", "{", "}"));
   CAF_CHECK_EQUAL(parse("\n[a-b];foo\n;bar"), make_log("key: a-b", "{", "}"));
   CAF_CHECK_EQUAL(parse(ini0), ini0_log);
+  CAF_CHECK_EQUAL(parse(ini1), ini1_log);
+}
+
+CAF_TEST(invalid inis) {
+  CAF_CHECK_EQUAL(parse(ini2), ini2_log);
+  CAF_CHECK_EQUAL(parse(ini3), ini3_log);
 }
 
 CAF_TEST_FIXTURE_SCOPE_END()

@@ -129,12 +129,6 @@ actor_system_config::actor_system_config()
                "schedule utility actors instead of dedicating threads")
     .add<bool>("manual-multiplexing",
                "disables background activity of the multiplexer")
-    .add<size_t>("cached-udp-buffers",
-                 "maximum for cached UDP send buffers (default: 10)")
-    .add<size_t>("max-pending-messages",
-                 "maximum for reordering of UDP receive buffers (default: 10)")
-    .add<bool>("disable-tcp", "disables communication via TCP")
-    .add<bool>("enable-udp", "enable communication via UDP")
     .add<size_t>("workers", "number of deserialization workers");
   opt_group(custom_options_, "opencl")
     .add<std::vector<size_t>>("device-ids", "whitelist for OpenCL devices");
@@ -152,6 +146,73 @@ actor_system_config::actor_system_config()
   // add renderers for default error categories
   error_renderers.emplace(atom("system"), render_sec);
   error_renderers.emplace(atom("exit"), render_exit_reason);
+}
+
+settings actor_system_config::dump_content() const {
+  settings result = content;
+  // -- streaming parameters
+  auto& stream_group = result["stream"].as_dictionary();
+  put_missing(stream_group, "desired-batch-complexity",
+              defaults::stream::desired_batch_complexity);
+  put_missing(stream_group, "max-batch-delay",
+              defaults::stream::max_batch_delay);
+  put_missing(stream_group, "credit-round-interval",
+              defaults::stream::credit_round_interval);
+  // -- scheduler parameters
+  auto& scheduler_group = result["scheduler"].as_dictionary();
+  put_missing(scheduler_group, "policy", defaults::scheduler::policy);
+  put_missing(scheduler_group, "max-threads", defaults::scheduler::max_threads);
+  put_missing(scheduler_group, "max-throughput",
+              defaults::scheduler::max_throughput);
+  put_missing(scheduler_group, "enable-profiling", false);
+  put_missing(scheduler_group, "profiling-resolution",
+              defaults::scheduler::profiling_resolution);
+  put_missing(scheduler_group, "profiling-output-file", std::string{});
+  // -- work-stealing parameters
+  auto& work_stealing_group = result["work-stealing"].as_dictionary();
+  put_missing(work_stealing_group, "aggressive-poll-attempts",
+              defaults::work_stealing::aggressive_poll_attempts);
+  put_missing(work_stealing_group, "aggressive-steal-interval",
+              defaults::work_stealing::aggressive_steal_interval);
+  put_missing(work_stealing_group, "moderate-poll-attempts",
+              defaults::work_stealing::moderate_poll_attempts);
+  put_missing(work_stealing_group, "moderate-steal-interval",
+              defaults::work_stealing::moderate_steal_interval);
+  put_missing(work_stealing_group, "moderate-sleep-duration",
+              defaults::work_stealing::moderate_sleep_duration);
+  put_missing(work_stealing_group, "relaxed-steal-interval",
+              defaults::work_stealing::relaxed_steal_interval);
+  put_missing(work_stealing_group, "relaxed-sleep-duration",
+              defaults::work_stealing::relaxed_sleep_duration);
+  // -- logger parameters
+  auto& logger_group = result["logger"].as_dictionary();
+  put_missing(logger_group, "file-name", defaults::logger::file_name);
+  put_missing(logger_group, "file-format", defaults::logger::file_format);
+  put_missing(logger_group, "file-verbosity", defaults::logger::file_verbosity);
+  put_missing(logger_group, "console", defaults::logger::console);
+  put_missing(logger_group, "console-format", defaults::logger::console_format);
+  put_missing(logger_group, "console-verbosity",
+              defaults::logger::console_verbosity);
+  put_missing(logger_group, "component-blacklist", std::vector<atom_value>{});
+  put_missing(logger_group, "inline-output", false);
+  // -- middleman parameters
+  auto& middleman_group = result["middleman"].as_dictionary();
+  put_missing(middleman_group, "app-identifiers",
+              defaults::middleman::app_identifiers);
+  put_missing(middleman_group, "enable-automatic-connections", false);
+  put_missing(middleman_group, "max-consecutive-reads",
+              defaults::middleman::max_consecutive_reads);
+  put_missing(middleman_group, "heartbeat-interval",
+              defaults::middleman::heartbeat_interval);
+  put_missing(middleman_group, "workers", defaults::middleman::workers);
+  // -- opencl parameters
+  auto& openssl_group = result["openssl"].as_dictionary();
+  put_missing(openssl_group, "certificate", std::string{});
+  put_missing(openssl_group, "key", std::string{});
+  put_missing(openssl_group, "passphrase", std::string{});
+  put_missing(openssl_group, "capath", std::string{});
+  put_missing(openssl_group, "cafile", std::string{});
+  return result;
 }
 
 std::string
@@ -238,28 +299,58 @@ bool operator!=(ini_iter iter, ini_sentinel) {
   return !iter.ini->fail();
 }
 
+struct indentation {
+  size_t size;
+};
+
+indentation operator+(indentation x, size_t y) noexcept {
+  return {x.size + y};
+}
+
+std::ostream& operator<<(std::ostream& out, indentation indent) {
+  for (size_t i = 0; i < indent.size; ++i)
+    out.put(' ');
+  return out;
+}
+
+void print(const config_value::dictionary& xs, indentation indent) {
+  using std::cout;
+  for (const auto& kvp : xs) {
+    if (kvp.first == "dump-config")
+      continue;
+    if (auto submap = get_if<config_value::dictionary>(&kvp.second)) {
+      cout << indent << kvp.first << " {\n";
+      print(*submap, indent + 2);
+      cout << indent << "}\n";
+    } else if (auto lst = get_if<config_value::list>(&kvp.second)) {
+      if (lst->empty()) {
+        cout << indent << kvp.first << " = []\n";
+      } else {
+        cout << indent << kvp.first << " = [\n";
+        auto list_indent = indent + 2;
+        for (auto& x : *lst)
+          cout << list_indent << to_string(x) << ",\n";
+        cout << indent << "]\n";
+      }
+    } else {
+      cout << indent << kvp.first << " = " << to_string(kvp.second) << '\n';
+    }
+  }
+};
+
 } // namespace <anonymous>
 
 error actor_system_config::parse(string_list args, std::istream& ini) {
   // Content of the INI file overrides hard-coded defaults.
-  if (ini.good()) {
-    detail::ini_consumer consumer{custom_options_, content};
-    detail::parser::state<ini_iter, ini_sentinel> res;
-    res.i = ini_iter{&ini};
-    detail::parser::read_ini(res, consumer);
-    if (res.i != res.e)
-      return make_error(res.code, res.line, res.column);
-  }
+  if (ini.good())
+    if (auto err = parse_config(ini, custom_options_, content))
+      return err;
   // CLI options override the content of the INI file.
   using std::make_move_iterator;
   auto res = custom_options_.parse(content, args);
   if (res.second != args.end()) {
-    if (res.first != pec::success) {
+    if (res.first != pec::success && starts_with(*res.second, "-"))
       return make_error(res.first, *res.second);
-      std::cerr << "error: at argument \"" << *res.second
-                << "\": " << to_string(res.first) << std::endl;
-      cli_helptext_printed = true;
-    }
     auto first = args.begin();
     first += std::distance(args.cbegin(), res.second);
     remainder.insert(remainder.end(), make_move_iterator(first),
@@ -273,16 +364,9 @@ error actor_system_config::parse(string_list args, std::istream& ini) {
     bool long_help = get_or(content, "long-help", false);
     std::cout << custom_options_.help_text(!long_help) << std::endl;
   }
-  // Generate INI dump if needed.
+  // Generate config dump if needed.
   if (!cli_helptext_printed && get_or(content, "dump-config", false)) {
-    for (auto& category : content) {
-      if (auto dict = get_if<config_value::dictionary>(&category.second)) {
-        std::cout << '[' << category.first << "]\n";
-        for (auto& kvp : *dict)
-          if (kvp.first != "dump-config")
-            std::cout << kvp.first << '=' << to_string(kvp.second) << '\n';
-      }
-    }
+    print(dump_content(), indentation{0});
     std::cout << std::flush;
     cli_helptext_printed = true;
   }
@@ -373,6 +457,49 @@ std::string actor_system_config::render_pec(uint8_t x, atom_value,
   auto tmp = static_cast<pec>(x);
   return deep_to_string(meta::type_name("parser_error"), tmp,
                         meta::omittable_if_empty(), xs);
+}
+
+expected<settings>
+actor_system_config::parse_config_file(const char* filename) {
+  config_option_set dummy;
+  return parse_config_file(filename, dummy);
+}
+
+expected<settings>
+actor_system_config::parse_config_file(const char* filename,
+                                       const config_option_set& opts) {
+  std::ifstream f{filename};
+  if (!f.is_open())
+    return make_error(sec::cannot_open_file, filename);
+  return parse_config(f, opts);
+}
+
+expected<settings> actor_system_config::parse_config(std::istream& source) {
+  config_option_set dummy;
+  return parse_config(source, dummy);
+}
+
+expected<settings>
+actor_system_config::parse_config(std::istream& source,
+                                  const config_option_set& opts) {
+  settings result;
+  if (auto err = parse_config(source, opts, result))
+    return err;
+  return result;
+}
+
+error actor_system_config::parse_config(std::istream& source,
+                                        const config_option_set& opts,
+                                        settings& result) {
+  if (!source)
+    return make_error(sec::runtime_error, "source stream invalid");
+  detail::ini_consumer consumer{opts, result};
+  detail::parser::state<ini_iter, ini_sentinel> res;
+  res.i = ini_iter{&source};
+  detail::parser::read_ini(res, consumer);
+  if (res.i != res.e)
+    return make_error(res.code, res.line, res.column);
+  return none;
 }
 
 error actor_system_config::extract_config_file_path(string_list& args) {

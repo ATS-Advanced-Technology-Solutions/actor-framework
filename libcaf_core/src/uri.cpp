@@ -19,12 +19,15 @@
 #include "caf/uri.hpp"
 
 #include "caf/deserializer.hpp"
+#include "caf/detail/append_percent_encoded.hpp"
+#include "caf/detail/fnv_hash.hpp"
+#include "caf/detail/overload.hpp"
+#include "caf/detail/parse.hpp"
 #include "caf/detail/parser/read_uri.hpp"
 #include "caf/detail/uri_impl.hpp"
 #include "caf/error.hpp"
 #include "caf/make_counted.hpp"
 #include "caf/serializer.hpp"
-#include "caf/uri_builder.hpp"
 
 namespace caf {
 
@@ -64,6 +67,10 @@ string_view uri::fragment() const noexcept {
   return impl_->fragment;
 }
 
+size_t uri::hash_code() const noexcept {
+  return detail::fnv_hash(str());
+}
+
 // -- comparison ---------------------------------------------------------------
 
 int uri::compare(const uri& other) const noexcept {
@@ -96,17 +103,40 @@ std::string to_string(const uri& x) {
   return result;
 }
 
-error parse(string_view str, uri& dest) {
-  using namespace detail::parser;
-  uri_builder builder;
-  state<string_view::iterator> res{str.begin(), str.end()};
-  read_uri(res, builder);
-  if (res.code == pec::success) {
-    dest = builder.make();
-    return none;
+std::string to_string(const uri::authority_type& x) {
+  std::string str;
+  if (!x.userinfo.empty()) {
+    detail::append_percent_encoded(str, x.userinfo);
+    str += '@';
   }
-  return make_error(res.code, static_cast<size_t>(res.line),
-                    static_cast<size_t>(res.column));
+  auto f = caf::detail::make_overload(
+    [&](const ip_address& addr) {
+      if (addr.embeds_v4()) {
+        str += to_string(addr);
+      } else {
+        str += '[';
+        str += to_string(addr);
+        str += ']';
+      }
+    },
+    [&](const std::string& host) {
+      detail::append_percent_encoded(str, host);
+    });
+  visit(f, x.host);
+  if (x.port != 0) {
+    str += ':';
+    str += std::to_string(x.port);
+  }
+  return str;
+}
+
+error parse(string_view str, uri& dest) {
+  detail::parse_state ps{str.begin(), str.end()};
+  parse(ps, dest);
+  if (ps.code == pec::success)
+    return none;
+  return make_error(ps.code, static_cast<size_t>(ps.line),
+                    static_cast<size_t>(ps.column));
 }
 
 } // namespace caf

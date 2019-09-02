@@ -27,7 +27,6 @@
 #include "caf/actor_system.hpp"
 #include "caf/binary_serializer.hpp"
 #include "caf/io/basp/message_queue.hpp"
-#include "caf/io/basp/worker_hub.hpp"
 #include "caf/make_actor.hpp"
 #include "caf/proxy_registry.hpp"
 
@@ -76,17 +75,16 @@ private:
 };
 
 struct fixture : test_coordinator_fixture<> {
-  io::basp::worker_hub hub;
+  detail::worker_hub<io::basp::worker> hub;
   io::basp::message_queue queue;
   mock_proxy_registry_backend proxies_backend;
   proxy_registry proxies;
   node_id last_hop;
   actor testee;
 
-  fixture()
-    : proxies_backend(sys),
-      proxies(sys, proxies_backend),
-      last_hop(123, "0011223344556677889900112233445566778899") {
+  fixture() : proxies_backend(sys), proxies(sys, proxies_backend) {
+    auto tmp = make_node_id(123, "0011223344556677889900112233445566778899");
+    last_hop = unbox(std::move(tmp));
     testee = sys.spawn<lazy_init>(testee_impl);
     sys.registry().put(testee.id(), testee);
   }

@@ -106,6 +106,10 @@ public:
   /// @private
   settings content;
 
+  /// Extracts all parameters from the config, including entries with default
+  /// values.
+  virtual settings dump_content() const;
+
   /// Sets a config by using its INI name `config_name` to `config_value`.
   template <class T>
   actor_system_config& set(string_view name, T&& value) {
@@ -327,6 +331,63 @@ public:
 
   static std::string render_pec(uint8_t, atom_value, const message&);
 
+  // -- config file parsing ----------------------------------------------------
+
+  /// Tries to open `filename` and parses its content as CAF config file.
+  /// @param filename Relative or absolute path to the config file.
+  /// @returns A ::settings dictionary with the parsed content of `filename` on
+  ///          success, an ::error otherwise.
+  static expected<settings> parse_config_file(const char* filename);
+
+  /// Tries to open `filename` and parses its content as CAF config file. Also
+  /// type-checks user-defined parameters in `opts`.
+  /// @param filename Relative or absolute path to the config file.
+  /// @param opts User-defined config options for type checking.
+  /// @returns A ::settings dictionary with the parsed content of `filename` on
+  ///          success, an ::error otherwise.
+  static expected<settings> parse_config_file(const char* filename,
+                                              const config_option_set& opts);
+
+  /// Tries to open `filename`, parses its content as CAF config file and
+  /// stores all entries in `result` (overrides conflicting entries). Also
+  /// type-checks user-defined parameters in `opts`.
+  /// @param filename Relative or absolute path to the config file.
+  /// @param opts User-defined config options for type checking.
+  /// @param result Storage for parsed entries. Note that `result` will contain
+  ///               partial results if this function returns an error.
+  /// @returns A default-constructed ::error on success, the error code of the
+  ///          parser otherwise.
+  static error parse_config_file(const char* filename,
+                                 const config_option_set& opts,
+                                 settings& result);
+
+  /// Parses the content of `source` using CAF's config format.
+  /// @param source Character sequence in CAF's config format.
+  /// @returns A ::settings dictionary with the parsed content of `source` on
+  ///          success, an ::error otherwise.
+  static expected<settings> parse_config(std::istream& source);
+
+  /// Parses the content of `source` using CAF's config format. Also
+  /// type-checks user-defined parameters in `opts`.
+  /// @param source Character sequence in CAF's config format.
+  /// @param opts User-defined config options for type checking.
+  /// @returns A ::settings dictionary with the parsed content of `source` on
+  ///          success, an ::error otherwise.
+  static expected<settings> parse_config(std::istream& source,
+                                         const config_option_set& opts);
+
+  /// Parses the content of `source` using CAF's config format and stores all
+  /// entries in `result` (overrides conflicting entries). Also type-checks
+  /// user-defined parameters in `opts`.
+  /// @param source Character sequence in CAF's config format.
+  /// @param opts User-defined config options for type checking.
+  /// @param result Storage for parsed entries. Note that `result` will contain
+  ///               partial results if this function returns an error.
+  /// @returns A default-constructed ::error on success, the error code of the
+  ///          parser otherwise.
+  static error parse_config(std::istream& source, const config_option_set& opts,
+                            settings& result);
+
 protected:
   virtual std::string make_help_text(const std::vector<message::cli_arg>&);
 
@@ -350,7 +411,7 @@ private:
   error adjust_content();
 };
 
-/// @private
+/// Returns all user-provided configuration parameters.
 const settings& content(const actor_system_config& cfg);
 
 /// Tries to retrieve the value associated to `name` from `cfg`.

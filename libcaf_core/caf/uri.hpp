@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "caf/detail/comparable.hpp"
+#include "caf/detail/parser/state.hpp"
 #include "caf/detail/unordered_flat_map.hpp"
 #include "caf/fwd.hpp"
 #include "caf/intrusive_ptr.hpp"
@@ -105,6 +106,9 @@ public:
   /// Returns the fragment component.
   string_view fragment() const noexcept;
 
+  /// Returns a hash code over all components.
+  size_t hash_code() const noexcept;
+
   // -- comparison -------------------------------------------------------------
 
   int compare(const uri& other) const noexcept;
@@ -132,6 +136,20 @@ typename Inspector::result_type inspect(Inspector& f, uri::authority_type& x) {
 std::string to_string(const uri& x);
 
 /// @relates uri
+std::string to_string(const uri::authority_type& x);
+
+/// @relates uri
 error parse(string_view str, uri& dest);
 
 } // namespace caf
+
+namespace std {
+
+template <>
+struct hash<caf::uri> {
+  size_t operator()(const caf::uri& x) const noexcept {
+    return x.hash_code();
+  }
+};
+
+} // namespace std

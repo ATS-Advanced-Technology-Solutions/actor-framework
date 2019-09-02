@@ -11,6 +11,8 @@ set(LIBCAF_CORE_SRCS
   src/abstract_composable_behavior.cpp
   src/abstract_coordinator.cpp
   src/abstract_group.cpp
+  src/abstract_worker.cpp
+  src/abstract_worker_hub.cpp
   src/actor.cpp
   src/actor_addr.cpp
   src/actor_clock.cpp
@@ -24,13 +26,13 @@ set(LIBCAF_CORE_SRCS
   src/actor_system.cpp
   src/actor_system_config.cpp
   src/append_hex.cpp
+  src/append_percent_encoded.cpp
   src/atom.cpp
   src/attachable.cpp
   src/behavior.cpp
   src/behavior_impl.cpp
   src/behavior_stack.cpp
   src/binary_deserializer.cpp
-  src/binary_serializer.cpp
   src/blocking_actor.cpp
   src/blocking_behavior.cpp
   src/chars.cpp
@@ -52,6 +54,7 @@ set(LIBCAF_CORE_SRCS
   src/event_based_actor.cpp
   src/execution_unit.cpp
   src/exit_reason.cpp
+  src/fnv_hash.cpp
   src/forwarding_actor_proxy.cpp
   src/get_mac_addresses.cpp
   src/get_process_id.cpp
@@ -63,8 +66,10 @@ set(LIBCAF_CORE_SRCS
   src/ini_consumer.cpp
   src/invoke_result_visitor.cpp
   src/ipv4_address.cpp
+  src/ipv4_endpoint.cpp
   src/ipv4_subnet.cpp
   src/ipv6_address.cpp
+  src/ipv6_endpoint.cpp
   src/ipv6_subnet.cpp
   src/local_actor.cpp
   src/logger.cpp
@@ -81,6 +86,7 @@ set(LIBCAF_CORE_SRCS
   src/monitorable_actor.cpp
   src/node_id.cpp
   src/outbound_path.cpp
+  src/parse.cpp
   src/pec.cpp
   src/pretty_type_name.cpp
   src/private_thread.cpp
