@@ -341,10 +341,18 @@ public:
   }
 
   template <class T, class... Ts>
-  enable_if_t<!meta::is_annotation<T>::value && is_callable<T>::value>
+  enable_if_t<!meta::is_annotation<T>::value && is_callable<T>::value && !has_to_string<T>::value>
   traverse(const T&, const Ts&... xs) {
     sep();
     result_ += "<fun>";
+    traverse(xs...);
+  }
+
+  template <class T, class... Ts>
+  enable_if_t<!meta::is_annotation<T>::value && is_callable<T>::value && has_to_string<T>::value>
+  traverse(const T& x, const Ts&... xs) {
+    sep();
+    consume(deconst(x));
     traverse(xs...);
   }
 
