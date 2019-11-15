@@ -19,8 +19,9 @@
 
 #include <cstdio>
 #include <cstring>
-#include <sstream>
 #include <iterator>
+#include <random>
+#include <sstream>
 
 #include "caf/config.hpp"
 #include "caf/node_id.hpp"
@@ -149,16 +150,27 @@ intrusive_ptr<node_id::data> node_id::data::create_singleton() {
   for (auto& i : ifs) {
     macs.emplace_back(std::move(i.second));
   }
-  auto hd_serial_and_mac_addr = join(macs, "") + detail::get_root_uuid();
-  node_id::host_id_type nid;
-  detail::ripemd_160(nid, hd_serial_and_mac_addr);
-  // TODO: redesign network layer, make node_id an opaque type, etc.
-  // this hack enables multiple actor systems in a single process
-  // by overriding the last byte in the node ID with the actor system "ID"
-  nid.back() = system_id.fetch_add(1);
+  auto seeded_hd_serial_and_mac_addr = join(macs, "") + detail::get_root_uuid();
+  // By adding 8 random ASCII characters, we make sure to assign a new (random)
+  // ID to a node every time we start it. Otherwise, we might run into issues
+  // where a restarted node produces identical actor IDs than the node it
+  // replaces. Especially when running nodes in a container, because then the
+  // process ID is most likely the same.
+  std::random_device rd;
+  std::minstd_rand gen{rd()};
+  std::uniform_int_distribution<char> dis(33, 126);
+  for (int i = 0; i < 8; ++i)
+    seeded_hd_serial_and_mac_addr += dis(gen);
+  // One final tweak: we add another character that makes sure two actor systems
+  // in the same process won't have the same node ID - even if the user
+  // manipulates the system to always produce the same seed for its randomness.
+  auto sys_seed = static_cast<char>(system_id.fetch_add(1) + 33);
+  seeded_hd_serial_and_mac_addr += sys_seed;
+  node_id::host_id_type hid;
+  detail::ripemd_160(hid, seeded_hd_serial_and_mac_addr);
   // note: pointer has a ref count of 1 -> implicitly held by detail::singletons
   intrusive_ptr<data> result;
-  result.reset(new node_id::data(detail::get_process_id(), nid), false);
+  result.reset(new node_id::data(detail::get_process_id(), hid), false);
   return result;
 }
 
